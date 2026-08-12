@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Expense Overview</title>
+    <meta name="theme-color" content="#ffffff" />
+    <link rel="manifest" href="manifest.json" />
+    <link rel="apple-touch-icon" href="icons/icon-192.svg" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="topbar" aria-labelledby="page-title">
+        <div>
+          <p class="eyebrow">Monthly budget tracker</p>
+          <h1 id="page-title">Expense Overview</h1>
+        </div>
+        <label class="month-picker">
+          <span>Month</span>
+          <input id="monthInput" type="month" />
+        </label>
+      </section>
+
+      <section class="summary-grid" aria-label="Monthly summary">
+        <article class="metric primary">
+          <span>Total spent</span>
+          <strong id="totalSpent">$0.00</strong>
+        </article>
+        <article class="metric">
+          <span>Average per day</span>
+          <strong id="dailyAverage">$0.00</strong>
+        </article>
+        <article class="metric">
+          <span>Largest expense</span>
+          <strong id="largestExpense">$0.00</strong>
+        </article>
+        <article class="metric">
+          <span>Entries</span>
+          <strong id="entryCount">0</strong>
+        </article>
+      </section>
+
+      <section class="workspace">
+        <section class="panel form-panel" aria-labelledby="form-title">
+          <div class="panel-heading">
+            <h2 id="form-title">Add expense</h2>
+          </div>
+          <form id="expenseForm" class="expense-form">
+            <label>
+              <span>Description</span>
+              <input id="descriptionInput" type="text" placeholder="Groceries, rent, transport" required />
+            </label>
+            <div class="form-row">
+              <label>
+                <span>Amount</span>
+                <input id="amountInput" type="number" min="0.01" step="0.01" placeholder="0.00" required />
+              </label>
+              <label>
+                <span>Date</span>
+                <input id="dateInput" type="date" required />
+              </label>
+            </div>
+            <label>
+              <span>Category</span>
+              <select id="categoryInput">
+                <option>Food</option>
+                <option>Rent</option>
+                <option>Transport</option>
+                <option>Utilities</option>
+                <option>Health</option>
+                <option>Shopping</option>
+                <option>Entertainment</option>
+                <option>Other</option>
+              </select>
+            </label>
+            <button type="submit">Add expense</button>
+          </form>
+        </section>
+
+        <section class="panel chart-panel" aria-labelledby="chart-title">
+          <div class="panel-heading split">
+            <div>
+              <h2 id="chart-title">Month overview</h2>
+              <p id="chartSubtitle">Daily spending for this month</p>
+            </div>
+            <select id="chartMode" aria-label="Chart mode">
+              <option value="daily">Daily</option>
+              <option value="category">Category</option>
+            </select>
+          </div>
+          <div class="chart-wrap">
+            <canvas id="expenseChart" width="900" height="420" aria-label="Expense chart" role="img"></canvas>
+          </div>
+        </section>
+      </section>
+
+      <section class="panel table-panel" aria-labelledby="expense-list-title">
+        <div class="panel-heading split">
+          <div>
+            <h2 id="expense-list-title">Expenses</h2>
+            <p id="listSubtitle">Showing this month</p>
+          </div>
+          <button id="clearMonthButton" class="ghost-button" type="button">Clear month</button>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Description</th>
+                <th>Category</th>
+                <th>Date</th>
+                <th class="amount-col">Amount</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="expenseRows"></tbody>
+          </table>
+          <div id="emptyState" class="empty-state">
+            <strong>No expenses yet</strong>
+            <span>Add an expense to see your monthly graph and spending overview.</span>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <script src="app.js"></script>
+  </body>
+</html>
