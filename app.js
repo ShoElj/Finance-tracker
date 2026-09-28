@@ -1,8 +1,8 @@
 const STORAGE_KEY = "expense-overview-items";
 
-const currency = new Intl.NumberFormat("en-US", {
+const currency = new Intl.NumberFormat("en-NG", {
   style: "currency",
-  currency: "USD",
+  currency: "NGN",
 });
 
 const categoryColors = {
@@ -100,7 +100,8 @@ elements.clearMonthButton.addEventListener("click", () => {
 
 window.addEventListener("resize", () => renderChart(getMonthlyExpenses()));
 
-if ("serviceWorker" in navigator) {
+// The Android app bundles its files, so it skips the service worker to avoid serving stale code after updates.
+if ("serviceWorker" in navigator && !window.Capacitor?.isNativePlatform()) {
   window.addEventListener("load", () => {
     navigator.serviceWorker.register("./service-worker.js");
   });
