@@ -10,6 +10,10 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+      ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+      ANDROID_VERSION_CODE: ${{ github.run_number }}
     steps:
       - uses: actions/checkout@v5
 
@@ -29,12 +33,23 @@ jobs:
           npm ci
           npm run android:sync
 
-      - name: Build debug APK
+      - name: Build signed release APK
+        if: env.KEYSTORE_BASE64 != ''
         working-directory: android
-        run: ./gradlew assembleDebug --no-daemon
+        run: |
+          echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.jks"
+          ANDROID_KEYSTORE_PATH="$RUNNER_TEMP/release.jks" ./gradlew assembleRelease --no-daemon
+          rm "$RUNNER_TEMP/release.jks"
+          cp app/build/outputs/apk/release/app-release.apk ../expense-overview.apk
+          "$ANDROID_HOME"/build-tools/*/apksigner verify --print-certs ../expense-overview.apk | grep -i "SHA-256"
 
-      - name: Rename APK
-        run: cp android/app/build/outputs/apk/debug/app-debug.apk expense-overview.apk
+      - name: Build debug APK (no signing key configured)
+        if: env.KEYSTORE_BASE64 == ''
+        working-directory: android
+        run: |
+          echo "::warning::ANDROID_KEYSTORE_BASE64 secret is not set; building a debug APK that cannot update an existing install."
+          ./gradlew assembleDebug --no-daemon
+          cp app/build/outputs/apk/debug/app-debug.apk ../expense-overview.apk
 
       - uses: actions/upload-artifact@v4
         with:
@@ -50,4 +65,4 @@ jobs:
             --prerelease \
             --target "$GITHUB_SHA" \
             --title "Android APK (latest build)" \
-            --notes "Debug APK built from ${GITHUB_REF_NAME} @ ${GITHUB_SHA::7}. Download expense-overview.apk on your phone and open it to install."
+            --notes "Build ${ANDROID_VERSION_CODE} from ${GITHUB_REF_NAME} @ ${GITHUB_SHA::7}. Download expense-overview.apk on your phone and open it to install."

@@ -5,13 +5,15 @@
   "scripts": {
     "start": "python3 -m http.server 8080",
     "build:web": "node scripts/build-web.mjs",
-    "android:sync": "npm run build:web && npx cap sync android"
+    "android:sync": "npm run build:web && npx cap sync android",
+    "android:assets": "node scripts/render-assets.mjs && capacitor-assets generate --android --iconBackgroundColor '#0f7a5c' --iconBackgroundColorDark '#0f7a5c' --splashBackgroundColor '#f4f5f2' --splashBackgroundColorDark '#0e100f'"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.2",
     "@capacitor/core": "^8.5.2"
   },
   "devDependencies": {
+    "@capacitor/assets": "^3.0.5",
     "@capacitor/cli": "^8.5.2"
   }
 }
