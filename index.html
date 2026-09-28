@@ -2,127 +2,167 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>Expense Overview</title>
-    <meta name="theme-color" content="#ffffff" />
+    <meta name="theme-color" content="#f4f5f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0e100f" media="(prefers-color-scheme: dark)" />
+    <meta name="color-scheme" content="light dark" />
     <link rel="manifest" href="manifest.json" />
+    <link rel="icon" href="icons/icon-192.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="icons/icon-192.svg" />
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
-    <main class="app-shell">
-      <section class="topbar" aria-labelledby="page-title">
+    <svg class="sprite" aria-hidden="true">
+      <symbol id="i-Food" viewBox="0 0 24 24"><path d="M4 3v7a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2V3M7 3v18M20 15V3a4 4 0 0 0-4 4v6a2 2 0 0 0 2 2h2Zm0 0v6" /></symbol>
+      <symbol id="i-Rent" viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5M5 9v12h14V9M10 21v-6h4v6" /></symbol>
+      <symbol id="i-Transport" viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="14" rx="3" /><path d="M4 10h16M8 21v-4M16 21v-4M8 13.5h.01M16 13.5h.01" /></symbol>
+      <symbol id="i-Utilities" viewBox="0 0 24 24"><path d="M13 2 4 14h8l-1 8 9-12h-8l1-8Z" /></symbol>
+      <symbol id="i-Health" viewBox="0 0 24 24"><path d="M20.4 5.1a5 5 0 0 0-7.1 0L12 6.4l-1.3-1.3a5 5 0 0 0-7.1 7.1L12 20.6l8.4-8.4a5 5 0 0 0 0-7.1Z" /><path d="M3 12h5l2-3 3 6 2-3h6" /></symbol>
+      <symbol id="i-Shopping" viewBox="0 0 24 24"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4ZM3 6h18M16 10a4 4 0 0 1-8 0" /></symbol>
+      <symbol id="i-Entertainment" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M7 4v16M17 4v16M3 9h4M3 15h4M17 9h4M17 15h4" /></symbol>
+      <symbol id="i-Other" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.5" /><circle cx="12" cy="12" r="1.5" /><circle cx="19" cy="12" r="1.5" /></symbol>
+      <symbol id="i-chevron-left" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6" /></symbol>
+      <symbol id="i-chevron-right" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6" /></symbol>
+      <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" /></symbol>
+      <symbol id="i-close" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12" /></symbol>
+      <symbol id="i-trash" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M6 6l1 14a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-14" /></symbol>
+      <symbol id="i-up" viewBox="0 0 24 24"><path d="M7 17 17 7M8 7h9v9" /></symbol>
+      <symbol id="i-down" viewBox="0 0 24 24"><path d="M7 7l10 10M17 8v9H8" /></symbol>
+      <symbol id="i-receipt" viewBox="0 0 24 24"><path d="M5 2v20l3-2 2 2 2-2 2 2 2-2 3 2V2l-3 2-2-2-2 2-2-2-2 2-3-2ZM9 8h6M9 12h6M9 16h4" /></symbol>
+    </svg>
+
+    <header class="appbar">
+      <div class="appbar-inner">
         <div>
-          <p class="eyebrow">Monthly budget tracker</p>
-          <h1 id="page-title">Expense Overview</h1>
+          <p class="eyebrow">Expense Overview</p>
+          <h1 id="monthLabel">This month</h1>
         </div>
-        <label class="month-picker">
-          <span>Month</span>
-          <input id="monthInput" type="month" />
-        </label>
+        <div class="month-nav" role="group" aria-label="Change month">
+          <button id="prevMonth" class="icon-button" type="button" aria-label="Previous month">
+            <svg><use href="#i-chevron-left" /></svg>
+          </button>
+          <label class="month-picker">
+            <span class="visually-hidden">Pick a month</span>
+            <input id="monthInput" type="month" />
+          </label>
+          <button id="nextMonth" class="icon-button" type="button" aria-label="Next month">
+            <svg><use href="#i-chevron-right" /></svg>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <main class="app-shell">
+      <section class="hero" aria-labelledby="heroLabel">
+        <p id="heroLabel" class="hero-label">Total spent</p>
+        <p id="totalSpent" class="hero-amount">₦0.00</p>
+        <p id="monthDelta" class="hero-delta"></p>
       </section>
 
-      <section class="summary-grid" aria-label="Monthly summary">
-        <article class="metric primary">
-          <span>Total spent</span>
-          <strong id="totalSpent">₦ 0.00</strong>
+      <section class="stats" aria-label="Monthly summary">
+        <article class="stat">
+          <span class="stat-label">Per day</span>
+          <strong id="dailyAverage" class="stat-value">₦0</strong>
         </article>
-        <article class="metric">
-          <span>Average per day</span>
-          <strong id="dailyAverage">₦ 0.00</strong>
+        <article class="stat">
+          <span class="stat-label">Largest</span>
+          <strong id="largestExpense" class="stat-value">₦0</strong>
         </article>
-        <article class="metric">
-          <span>Largest expense</span>
-          <strong id="largestExpense">₦ 0.00</strong>
-        </article>
-        <article class="metric">
-          <span>Entries</span>
-          <strong id="entryCount">0</strong>
+        <article class="stat">
+          <span class="stat-label">Entries</span>
+          <strong id="entryCount" class="stat-value">0</strong>
         </article>
       </section>
 
-      <section class="workspace">
-        <section class="panel form-panel" aria-labelledby="form-title">
-          <div class="panel-heading">
-            <h2 id="form-title">Add expense</h2>
-          </div>
-          <form id="expenseForm" class="expense-form">
-            <label>
-              <span>Description</span>
-              <input id="descriptionInput" type="text" placeholder="Groceries, rent, transport" required />
-            </label>
-            <div class="form-row">
-              <label>
-                <span>Amount</span>
-                <input id="amountInput" type="number" min="0.01" step="0.01" placeholder="0.00" required />
-              </label>
-              <label>
-                <span>Date</span>
-                <input id="dateInput" type="date" required />
-              </label>
-            </div>
-            <label>
-              <span>Category</span>
-              <select id="categoryInput">
-                <option>Food</option>
-                <option>Rent</option>
-                <option>Transport</option>
-                <option>Utilities</option>
-                <option>Health</option>
-                <option>Shopping</option>
-                <option>Entertainment</option>
-                <option>Other</option>
-              </select>
-            </label>
-            <button type="submit">Add expense</button>
-          </form>
-        </section>
-
-        <section class="panel chart-panel" aria-labelledby="chart-title">
-          <div class="panel-heading split">
-            <div>
-              <h2 id="chart-title">Month overview</h2>
-              <p id="chartSubtitle">Daily spending for this month</p>
-            </div>
-            <select id="chartMode" aria-label="Chart mode">
-              <option value="daily">Daily</option>
-              <option value="category">Category</option>
-            </select>
-          </div>
-          <div class="chart-wrap">
-            <canvas id="expenseChart" width="900" height="420" aria-label="Expense chart" role="img"></canvas>
-          </div>
-        </section>
-      </section>
-
-      <section class="panel table-panel" aria-labelledby="expense-list-title">
-        <div class="panel-heading split">
+      <section class="card" aria-labelledby="chartTitle">
+        <div class="card-head">
           <div>
-            <h2 id="expense-list-title">Expenses</h2>
-            <p id="listSubtitle">Showing this month</p>
+            <h2 id="chartTitle">Daily spending</h2>
+            <p id="chartHint" class="card-sub">Tap a bar to see the day's total</p>
           </div>
-          <button id="clearMonthButton" class="ghost-button" type="button">Clear month</button>
         </div>
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Description</th>
-                <th>Category</th>
-                <th>Date</th>
-                <th class="amount-col">Amount</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody id="expenseRows"></tbody>
-          </table>
-          <div id="emptyState" class="empty-state">
-            <strong>No expenses yet</strong>
-            <span>Add an expense to see your monthly graph and spending overview.</span>
-          </div>
+        <div class="chart-wrap" id="chartWrap">
+          <canvas id="expenseChart" role="img" aria-label="Bar chart of daily spending"></canvas>
+          <div id="chartTooltip" class="chart-tooltip" role="status" hidden></div>
+        </div>
+      </section>
+
+      <section class="card" aria-labelledby="categoryTitle">
+        <div class="card-head">
+          <h2 id="categoryTitle">By category</h2>
+        </div>
+        <ul id="categoryList" class="category-list"></ul>
+      </section>
+
+      <section class="card" aria-labelledby="listTitle">
+        <div class="card-head">
+          <h2 id="listTitle">Transactions</h2>
+          <button id="clearMonthButton" class="text-button danger" type="button">Clear month</button>
+        </div>
+        <div id="expenseGroups" class="groups"></div>
+        <div id="emptyState" class="empty-state" hidden>
+          <svg><use href="#i-receipt" /></svg>
+          <strong>No expenses this month</strong>
+          <span>Tap “Add expense” to record your first one.</span>
         </div>
       </section>
     </main>
+
+    <button id="addButton" class="fab" type="button">
+      <svg><use href="#i-plus" /></svg>
+      <span>Add expense</span>
+    </button>
+
+    <dialog id="expenseSheet" class="sheet" aria-labelledby="sheetTitle">
+      <form id="expenseForm" class="sheet-body" novalidate>
+        <div class="sheet-grip" aria-hidden="true"></div>
+        <div class="sheet-head">
+          <h2 id="sheetTitle">Add expense</h2>
+          <button id="closeSheet" class="icon-button" type="button" aria-label="Close">
+            <svg><use href="#i-close" /></svg>
+          </button>
+        </div>
+
+        <label class="amount-field">
+          <span class="field-label">Amount</span>
+          <span class="amount-input">
+            <span aria-hidden="true">₦</span>
+            <input id="amountInput" type="number" inputmode="decimal" min="0.01" step="0.01" placeholder="0.00" required />
+          </span>
+          <span id="amountError" class="field-error" hidden>Enter an amount greater than 0</span>
+        </label>
+
+        <label class="field">
+          <span class="field-label">Description</span>
+          <input id="descriptionInput" type="text" placeholder="e.g. Groceries at Shoprite" maxlength="80" required />
+          <span id="descriptionError" class="field-error" hidden>Add a short description</span>
+        </label>
+
+        <fieldset class="field">
+          <legend class="field-label">Category</legend>
+          <div id="categoryChips" class="chips"></div>
+        </fieldset>
+
+        <label class="field">
+          <span class="field-label">Date</span>
+          <input id="dateInput" type="date" required />
+        </label>
+
+        <div class="sheet-actions">
+          <button id="deleteButton" class="button ghost danger" type="button" hidden>
+            <svg><use href="#i-trash" /></svg>
+            Delete
+          </button>
+          <button id="saveButton" class="button primary" type="submit">Save expense</button>
+        </div>
+      </form>
+    </dialog>
+
+    <div id="toast" class="toast" role="status" aria-live="polite" hidden>
+      <span id="toastText"></span>
+      <button id="toastUndo" class="text-button" type="button">Undo</button>
+    </div>
 
     <script src="app.js"></script>
   </body>
