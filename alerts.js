@@ -25,6 +25,10 @@
   const COUNTERPARTY =
     /\b(?:to|for|at)\s+([A-Za-z0-9][A-Za-z0-9 &'.\-\/]{1,40}?)(?=\s*(?:[,;]|\.\s|\.$|\bon\b|\bvia\b|\bwith\b|\bref\b|\bat\b|\bfrom\b|\n|$))/i;
 
+  const DATE_FIELD =
+    /\b(?:date|dt)\s*[:\-]\s*(\d{1,4})[-\/ ]([0-9]{1,2}|[A-Za-z]{3,9})[-\/ ](\d{2,4})(?:[ T,]+(\d{1,2}):(\d{2})(?::\d{2})?\s*([AP]M)?)?/i;
+  const MONTHS = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
+
   const CATEGORY_RULES = [
     ["Rent", /\brent\b|landlord|\blease\b|service charge|agent fee/i],
     ["Utilities", /airtime|\bdata\b|recharge|\bmtn\b|airtel|\bglo\b|9mobile|dstv|gotv|startimes|showmax|electric|ekedc|ikedc|aedc|phed|kedco|ibedc|prepaid|meter|\bwater\b|\bbills?\b|internet|spectranet|smile/i],
@@ -39,7 +43,33 @@
     const source = `${alert.sender || ""} ${alert.app || ""} ${alert.packageName || ""}`;
     for (const bank of BANKS) if (bank.pattern.test(source)) return bank.name;
     for (const bank of BANKS) if (bank.pattern.test(alert.body || "")) return bank.name;
-    return (alert.app || alert.sender || "Bank").trim();
+    return (alert.app || alert.sender || "").trim();
+  }
+
+  // Reads the alert's own "Date:" line (e.g. 2026-09-27 7:10PM or 28-Sep-2026 14:22) as local time.
+  function findDate(text) {
+    const match = text.match(DATE_FIELD);
+    if (!match) return null;
+    const [, first, middle, last, hour = "0", minute = "0", meridiem] = match;
+    const [year, day] = first.length === 4 ? [Number(first), Number(last)] : [Number(last), Number(first)];
+    const month = /\d/.test(middle) ? Number(middle) : MONTHS.indexOf(middle.slice(0, 3).toLowerCase()) + 1;
+    let hours = Number(hour);
+    if (/pm/i.test(meridiem || "") && hours < 12) hours += 12;
+    if (/am/i.test(meridiem || "") && hours === 12) hours = 0;
+
+    const fullYear = year < 100 ? 2000 + year : year;
+    if (month < 1 || month > 12 || day < 1 || day > 31 || hours > 23) return null;
+    const date = new Date(fullYear, month - 1, day, hours, Number(minute));
+    return Number.isNaN(date.getTime()) ? null : date.getTime();
+  }
+
+  // Splits text holding several pasted alerts (blank-line separated, or each starting with "Acct:").
+  function splitAlerts(text) {
+    return text
+      .split(/\n\s*\n/)
+      .flatMap((chunk) => chunk.split(/(?=^\s*(?:acct|a\/c)\s*[:\-])/im))
+      .map((chunk) => chunk.trim())
+      .filter(Boolean);
   }
 
   function findAmount(text) {
@@ -102,18 +132,18 @@
     if (!amount || !direction) return null;
 
     const bank = detectBank(alert);
-    const description = findDescription(body, title) || `${bank} ${direction === "debit" ? "payment" : "credit"}`;
+    const description = findDescription(body, title) || `${bank || "Bank"} ${direction === "debit" ? "payment" : "credit"}`;
     return {
       amount: Math.round(amount * 100) / 100,
       direction,
       description,
       bank,
       category: guessCategory(`${description} ${body}`),
-      timestamp: Number(alert.timestamp) || Date.now(),
+      timestamp: findDate(text) ?? (Number(alert.timestamp) || Date.now()),
     };
   }
 
-  const api = { parseAlert, guessCategory, detectBank };
+  const api = { parseAlert, splitAlerts, guessCategory, detectBank };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else root.BankAlertParser = api;
 })(typeof window !== "undefined" ? window : globalThis);

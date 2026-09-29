@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { parseAlert } = require("../alerts.js");
+const { parseAlert, splitAlerts } = require("../alerts.js");
 
 const debit = (alert, expected) => {
   const result = parseAlert(alert);
@@ -81,3 +81,34 @@ test("ignores OTPs, failed transfers and non-money messages", () => {
 
 test("uses the transaction amount, not the balance", () =>
   debit({ sender: "Providus", body: "Avail Bal: NGN90,000.00. Amt: NGN4,000.00 DR Desc: UBER TRIP" }, { amount: 4000, category: "Transport" }));
+
+// Real-world layout shared by a user (amounts, balances and places changed).
+const REAL_CREDIT = "Acct:******0000\nAmt:NGN20,000.00 CR\nDesc:ATM TRA SOME STREET LAGOS\nBal:NGN25,000.10\nDate:2026-09-21 12:17PM";
+const REAL_DEBIT =
+  "Acct:******0000\nAmt:NGN50.00 DR\nDesc:STAMP DUTY CHARGE FOR TRXNS BTW 21-09-2026 TO 25-09-2026\nBal:NGN24,950.10\nDate:2026-09-27 7:10PM";
+
+test("compact Acct/Amt/Desc/Bal/Date layout", () => {
+  assert.equal(parseAlert({ body: REAL_CREDIT }).direction, "credit");
+  const result = parseAlert({ body: REAL_DEBIT, timestamp: Date.parse("2026-09-29T10:00:00") });
+  assert.equal(result.direction, "debit");
+  assert.equal(result.amount, 50);
+  assert.equal(result.description, "Stamp Duty Charge For Trxns Btw 21-09-2026 To 25-09-2026");
+  assert.equal(new Date(result.timestamp).toString(), new Date(2026, 8, 27, 19, 10).toString());
+});
+
+test("reads the Date line in other layouts", () => {
+  const at = (body) => new Date(parseAlert({ body, timestamp: 0 }).timestamp);
+  assert.deepEqual(at("Amt: NGN1,000.00 DR Desc: X Date: 28-Sep-2026 14:22").getHours(), 14);
+  assert.deepEqual(at("Amt: NGN1,000.00 DR Desc: X Date: 28/09/2026 09:05").getDate(), 28);
+  assert.deepEqual(at("Amt: NGN1,000.00 DR Desc: X Date: 2026-09-01 12:05AM").getHours(), 0);
+});
+
+test("splits several pasted alerts", () => {
+  assert.equal(splitAlerts(`${REAL_CREDIT}\n${REAL_DEBIT}`).length, 2);
+  assert.equal(splitAlerts(`${REAL_CREDIT}\n\n${REAL_DEBIT}`).length, 2);
+  assert.equal(splitAlerts("You paid ₦1,000.00 for Airtime").length, 1);
+});
+
+test("pasted alerts without a sender have no bank name", () => {
+  assert.equal(parseAlert({ body: REAL_DEBIT }).bank, "");
+});

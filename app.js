@@ -230,11 +230,12 @@ elements.autoAddToggle.addEventListener("change", (event) => {
 });
 
 elements.pasteButton.addEventListener("click", () => {
-  const text = elements.pasteInput.value.trim();
-  const parsed = text ? BankAlertParser.parseAlert({ body: text, timestamp: Date.now() }) : null;
-  const error = !parsed
+  const chunks = BankAlertParser.splitAlerts(elements.pasteInput.value);
+  const parsedAll = chunks.map((body) => BankAlertParser.parseAlert({ body, timestamp: Date.now() }));
+  const debits = parsedAll.filter((parsed) => parsed?.direction === "debit");
+  const error = !parsedAll.some(Boolean)
     ? "Couldn't find a transaction amount in that text"
-    : parsed.direction !== "debit"
+    : !debits.length
       ? "That looks like money coming in, not an expense"
       : "";
   elements.pasteError.textContent = error;
@@ -243,6 +244,17 @@ elements.pasteButton.addEventListener("click", () => {
 
   elements.pasteInput.value = "";
   elements.importSheet.close();
+
+  // Several alerts at once go to the review list; a single one opens the form to check.
+  if (chunks.length > 1) {
+    ingestAlerts(
+      chunks.map((body) => ({ id: `paste:${hashText(body)}`, source: "paste", body, timestamp: Date.now() })),
+      { announceEmpty: true },
+    );
+    return;
+  }
+
+  const parsed = debits[0];
   openSheet(null, {
     amount: parsed.amount,
     description: parsed.description,
@@ -403,7 +415,7 @@ function renderPending() {
           <span class="category-icon" style="--cat: var(--cat-${safe})"><svg aria-hidden="true"><use href="#i-${safe}" /></svg></span>
           <span class="txn-main">
             <span class="txn-title">${escapeHtml(item.description)}</span>
-            <span class="txn-meta">${escapeHtml(item.bank)} · ${when}</span>
+            <span class="txn-meta">${item.bank ? `${escapeHtml(item.bank)} · ` : ""}${when}</span>
           </span>
           <span class="txn-amount">${currency.format(item.amount)}</span>
           <span class="pending-actions">
@@ -821,6 +833,12 @@ function saveJson(key, value) {
 
 function saveExpenses() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state.expenses));
+}
+
+function hashText(text) {
+  let hash = 5381;
+  for (let index = 0; index < text.length; index += 1) hash = ((hash << 5) + hash + text.charCodeAt(index)) | 0;
+  return (hash >>> 0).toString(36);
 }
 
 function createId() {
