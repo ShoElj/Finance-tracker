@@ -112,6 +112,9 @@
     text = text.replace(/\b[A-Z][A-Z']+\b/g, (word) => word[0] + word.slice(1).toLowerCase());
     text = text.replace(/\b(Pos|Nip|Trf|Atm|Ussd|Web|Mtn|Dstv|Gotv|Kfc|Uba|Gtb|Fbn)\b/g, (word) => word.toUpperCase());
     text = text.charAt(0).toUpperCase() + text.slice(1);
+    // "Outward Transfer To Opay - Daniel Ayoola" → "To Daniel Ayoola (Opay)", so the recipient isn't cut off in the list.
+    const outward = text.match(/^(?:outward |nip |inter-?bank )?(?:transfer|trf) to ([^-–]{2,25}?)\s*[-–]\s*(.+)$/i);
+    if (outward) text = `To ${outward[2].trim()} (${outward[1].trim()})`;
     return text.length > 60 ? `${text.slice(0, 57).trimEnd()}…` : text;
   }
 
@@ -146,7 +149,7 @@
     };
   }
 
-  const api = { parseAlert, splitAlerts, guessCategory, detectBank };
+  const api = { parseAlert, splitAlerts, guessCategory, detectBank, cleanDescription: tidy };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else root.BankAlertParser = api;
 })(typeof window !== "undefined" ? window : globalThis);

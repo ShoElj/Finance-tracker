@@ -6,6 +6,7 @@ const CATEGORY_MEMORY_KEY = "expense-overview-category-memory";
 const DEMO_REMOVED_KEY = "expense-overview-demo-removed";
 const CATEGORIES = ["Food", "Rent", "Transport", "Utilities", "Health", "Shopping", "Entertainment", "Transfers", "Bank charges", "Other"];
 const RECATEGORIZED_KEY = "expense-overview-recategorized-v1";
+const DESCRIPTIONS_CLEANED_KEY = "expense-overview-descriptions-v2";
 
 const currency = new Intl.NumberFormat("en-NG", { style: "currency", currency: "NGN" });
 const compactCurrency = new Intl.NumberFormat("en-NG", {
@@ -217,6 +218,7 @@ elements.ownNamesInput.addEventListener("change", () => {
 });
 
 recategorizeImported();
+cleanImportedDescriptions();
 
 elements.importButton.addEventListener("click", openImportSheet);
 elements.setupButton.addEventListener("click", openImportSheet);
@@ -818,6 +820,17 @@ function recategorizeImported() {
   saveExpenses();
   saveJson(PENDING_KEY, state.pending);
   localStorage.setItem(RECATEGORIZED_KEY, "1");
+}
+
+// Rewrites descriptions imported before the recipient-first format (e.g. GTBank outward transfers).
+function cleanImportedDescriptions() {
+  if (localStorage.getItem(DESCRIPTIONS_CLEANED_KEY)) return;
+  for (const item of [...state.expenses, ...state.pending]) {
+    if (item.source) item.description = BankAlertParser.cleanDescription(item.description);
+  }
+  saveExpenses();
+  saveJson(PENDING_KEY, state.pending);
+  localStorage.setItem(DESCRIPTIONS_CLEANED_KEY, "1");
 }
 
 function escapeRegExp(value) {

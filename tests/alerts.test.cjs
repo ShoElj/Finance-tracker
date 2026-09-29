@@ -124,3 +124,13 @@ test("sorts bank charges and transfers", () => {
   // "charged" on its own is not a bank fee.
   assert.equal(parseAlert({ app: "OPay", title: "Debit", body: "Your wallet was charged ₦4,500.00 for DSTV" }).category, "Utilities");
 });
+
+test("puts the recipient first in GTBank outward transfers", () => {
+  const body = "Acct:******0000\nAmt:NGN10,000.00 DR\nDesc:OUTWARD TRANSFER TO OPAY - JOHN ADE DOE\nBal:NGN5,000.00\nDate:2026-09-25 10:00AM";
+  const result = parseAlert({ sender: "GTBank", body });
+  assert.equal(result.description, "To John Ade Doe (Opay)");
+  assert.equal(result.category, "Transfers");
+  const { cleanDescription } = require("../alerts.js");
+  assert.equal(cleanDescription("Outward Transfer To Moniemfb - POS Transfer- Shop"), "To POS Transfer- Shop (Moniemfb)");
+  assert.equal(cleanDescription("To John Ade Doe (Opay)"), "To John Ade Doe (Opay)");
+});
