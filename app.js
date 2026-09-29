@@ -191,7 +191,7 @@ elements.toastUndo.addEventListener("click", () => {
   hideToast();
 });
 
-elements.chartWrap.addEventListener("pointerdown", (event) => selectBarAt(event));
+elements.chartWrap.addEventListener("pointerdown", (event) => selectBarAt(event, event.pointerType !== "mouse"));
 elements.chartWrap.addEventListener("pointermove", (event) => {
   if (event.pointerType === "mouse") selectBarAt(event);
 });
@@ -338,7 +338,11 @@ function renderDelta(total) {
   const previousTotal = sum(getExpensesForMonth(previousMonth));
   const label = formatMonthLabel(previousMonth).split(" ")[0];
 
-  if (!previousTotal || !total) {
+  // Only compare against a month the records fully cover; a partly imported month gives silly percentages.
+  const earliest = state.expenses.reduce((min, expense) => (expense.date < min ? expense.date : min), "9999");
+  const previousIsComplete = earliest <= `${previousMonth}-03`;
+
+  if (!previousTotal || !total || !previousIsComplete) {
     elements.monthDelta.innerHTML = "";
     return;
   }
@@ -546,15 +550,17 @@ function renderChart() {
   positionTooltip();
 }
 
-function selectBarAt(event) {
+function selectBarAt(event, toggle = false) {
   if (!chartLayout) return;
   const rect = elements.chart.getBoundingClientRect();
   const x = event.clientX - rect.left - chartLayout.padding.left;
   const day = Math.floor(x / chartLayout.slot) + 1;
-  selectDay(day >= 1 && day <= chartLayout.days ? day : null);
+  selectDay(day >= 1 && day <= chartLayout.days ? day : null, toggle);
 }
 
-function selectDay(day) {
+function selectDay(day, toggle = false) {
+  // Tapping the selected bar again closes its tooltip.
+  if (toggle && state.selectedDay === day) day = null;
   if (state.selectedDay === day) return;
   state.selectedDay = day;
   renderChart();
