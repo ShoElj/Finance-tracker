@@ -112,3 +112,15 @@ test("splits several pasted alerts", () => {
 test("pasted alerts without a sender have no bank name", () => {
   assert.equal(parseAlert({ body: REAL_DEBIT }).bank, "");
 });
+
+test("sorts bank charges and transfers", () => {
+  assert.equal(parseAlert({ body: REAL_DEBIT }).category, "Bank charges");
+  assert.equal(parseAlert({ sender: "GTBank", body: "Amt: NGN10.75 DR Desc: SMS ALERT CHARGES SEPT" }).category, "Bank charges");
+  assert.equal(parseAlert({ sender: "FirstBank", body: "Amt: NGN26.88 DR Desc: NIP CHARGE + VAT" }).category, "Bank charges");
+  assert.equal(parseAlert({ sender: "FirstBank", body: "Debit: 3012345678 NGN 12,000.00 Desc: NIP TRF TO JOHN DOE Bal: NGN 40,000.00" }).category, "Transfers");
+  assert.equal(parseAlert({ app: "OPay", title: "Transfer Successful", body: "You have successfully transferred ₦5,000.00 to JOHN DOE." }).category, "Transfers");
+  assert.equal(parseAlert({ sender: "GTBank", body: "Amt: NGN9,000.00 DR Desc: NIP TRF TO SHOPRITE LEKKI" }).category, "Food");
+  assert.equal(parseAlert({ sender: "GTBank", body: "Amt: NGN25,000.00 DR Desc: TRANSFER TO LANDLORD RENT" }).category, "Rent");
+  // "charged" on its own is not a bank fee.
+  assert.equal(parseAlert({ app: "OPay", title: "Debit", body: "Your wallet was charged ₦4,500.00 for DSTV" }).category, "Utilities");
+});

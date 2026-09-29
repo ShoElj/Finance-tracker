@@ -28,6 +28,8 @@
   --cat-Health: #e87ba4;
   --cat-Shopping: #008300;
   --cat-Entertainment: #4a3aa7;
+  --cat-Transfers: #54698f;
+  --cat-Bank-charges: #e34948;
   --cat-Other: #7a807c;
 
   --radius: 20px;
@@ -67,6 +69,8 @@
     --cat-Health: #d55181;
     --cat-Shopping: #1f9a1f;
     --cat-Entertainment: #9085e9;
+    --cat-Transfers: #8ea3c8;
+    --cat-Bank-charges: #e66767;
     --cat-Other: #8a908c;
   }
 }
@@ -578,6 +582,11 @@ h2 {
 .txn-amount {
   font-weight: 700;
   font-variant-numeric: tabular-nums;
+}
+
+.txn-amount.is-excluded {
+  color: var(--ink-3);
+  text-decoration: line-through;
 }
 
 .empty-state {

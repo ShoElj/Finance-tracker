@@ -21,6 +21,8 @@
       <symbol id="i-Health" viewBox="0 0 24 24"><path d="M20.4 5.1a5 5 0 0 0-7.1 0L12 6.4l-1.3-1.3a5 5 0 0 0-7.1 7.1L12 20.6l8.4-8.4a5 5 0 0 0 0-7.1Z" /><path d="M3 12h5l2-3 3 6 2-3h6" /></symbol>
       <symbol id="i-Shopping" viewBox="0 0 24 24"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4ZM3 6h18M16 10a4 4 0 0 1-8 0" /></symbol>
       <symbol id="i-Entertainment" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M7 4v16M17 4v16M3 9h4M3 15h4M17 9h4M17 15h4" /></symbol>
+      <symbol id="i-Transfers" viewBox="0 0 24 24"><path d="M4 7h14l-4-4M20 17H6l4 4" /></symbol>
+      <symbol id="i-Bank-charges" viewBox="0 0 24 24"><circle cx="7" cy="7" r="2.5" /><circle cx="17" cy="17" r="2.5" /><path d="M19 5 5 19" /></symbol>
       <symbol id="i-Other" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.5" /><circle cx="12" cy="12" r="1.5" /><circle cx="19" cy="12" r="1.5" /></symbol>
       <symbol id="i-chevron-left" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6" /></symbol>
       <symbol id="i-chevron-down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6" /></symbol>
@@ -185,6 +187,14 @@
           <input id="dateInput" type="date" required />
         </label>
 
+        <label class="switch-row own-transfer-row">
+          <span class="import-text">
+            <strong>Transfer to my own account</strong>
+            <span>Keep it in the list but don't count it as spending</span>
+          </span>
+          <input id="ownTransferInput" type="checkbox" role="switch" />
+        </label>
+
         <div class="sheet-actions">
           <button id="deleteButton" class="button ghost danger" type="button" hidden>
             <svg><use href="#i-trash" /></svg>
@@ -237,6 +247,15 @@
             “Allow restricted settings”, then come back and try again.
           </p>
         </div>
+        <label class="field">
+          <span class="field-label">Your name on transfers</span>
+          <input id="ownNamesInput" type="text" autocomplete="name" placeholder="e.g. Ada Okafor" />
+          <span class="hint">
+            Transfers to this name are moves between your own accounts and aren't counted as spending. Add
+            other spellings your banks use, separated by commas.
+          </span>
+        </label>
+
         <p id="webImportNote" class="hint" hidden>Automatic import works in the Android app. Here you can paste an alert instead.</p>
 
         <label class="field">

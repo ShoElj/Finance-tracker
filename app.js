@@ -4,7 +4,8 @@ const SEEN_ALERTS_KEY = "expense-overview-seen-alerts";
 const SETTINGS_KEY = "expense-overview-settings";
 const CATEGORY_MEMORY_KEY = "expense-overview-category-memory";
 const DEMO_REMOVED_KEY = "expense-overview-demo-removed";
-const CATEGORIES = ["Food", "Rent", "Transport", "Utilities", "Health", "Shopping", "Entertainment", "Other"];
+const CATEGORIES = ["Food", "Rent", "Transport", "Utilities", "Health", "Shopping", "Entertainment", "Transfers", "Bank charges", "Other"];
+const RECATEGORIZED_KEY = "expense-overview-recategorized-v1";
 
 const currency = new Intl.NumberFormat("en-NG", { style: "currency", currency: "NGN" });
 const compactCurrency = new Intl.NumberFormat("en-NG", {
@@ -21,7 +22,7 @@ const state = {
   expenses: loadExpenses(),
   pending: loadJson(PENDING_KEY, []),
   seenAlerts: new Set(loadJson(SEEN_ALERTS_KEY, [])),
-  settings: { autoAdd: false, setupDismissed: false, ...loadJson(SETTINGS_KEY, {}) },
+  settings: { autoAdd: false, setupDismissed: false, ownNames: "", ...loadJson(SETTINGS_KEY, {}) },
   categoryMemory: loadJson(CATEGORY_MEMORY_KEY, {}),
   importStatus: { sms: false, notifications: false },
   draft: null,
@@ -91,15 +92,17 @@ const elements = {
   pasteInput: $("#pasteInput"),
   pasteError: $("#pasteError"),
   pasteButton: $("#pasteButton"),
+  ownNamesInput: $("#ownNamesInput"),
+  ownTransferInput: $("#ownTransferInput"),
 };
 
 const categoryOptions = CATEGORIES.map((category) => `<option value="${category}">${category}</option>`).join("");
 
 elements.categoryChips.innerHTML = CATEGORIES.map(
   (category, index) => `
-    <label class="chip" style="--cat: var(--cat-${category})">
+    <label class="chip" style="--cat: var(--cat-${catKey(category)})">
       <input type="radio" name="category" value="${category}" ${index === 0 ? "checked" : ""} />
-      <span><svg aria-hidden="true"><use href="#i-${category}" /></svg>${category}</span>
+      <span><svg aria-hidden="true"><use href="#i-${catKey(category)}" /></svg>${category}</span>
     </label>`,
 ).join("");
 
@@ -134,6 +137,7 @@ elements.form.addEventListener("submit", (event) => {
     description,
     category: elements.form.elements.category.value,
     date: elements.dateInput.value || toDateValue(new Date()),
+    ownTransfer: elements.ownTransferInput.checked,
   };
 
   const existing = state.expenses.find((expense) => expense.id === state.editingId);
@@ -200,6 +204,19 @@ elements.chartWrap.addEventListener("pointerleave", (event) => {
 });
 
 /* Bank import */
+
+elements.ownNamesInput.value = state.settings.ownNames;
+elements.ownNamesInput.addEventListener("change", () => {
+  state.settings.ownNames = elements.ownNamesInput.value.trim();
+  saveJson(SETTINGS_KEY, state.settings);
+  const marked = markOwnTransfers(state.expenses) + markOwnTransfers(state.pending);
+  saveExpenses();
+  saveJson(PENDING_KEY, state.pending);
+  render();
+  if (marked) showToast(`${marked} ${marked === 1 ? "transfer" : "transfers"} to your own accounts found`);
+});
+
+recategorizeImported();
 
 elements.importButton.addEventListener("click", openImportSheet);
 elements.setupButton.addEventListener("click", openImportSheet);
@@ -312,8 +329,9 @@ function setMonth(month) {
 
 function render() {
   const monthly = getExpensesForMonth(state.month);
-  const total = sum(monthly);
-  const largest = monthly.reduce((max, expense) => Math.max(max, expense.amount), 0);
+  const counted = spending(monthly);
+  const total = sum(counted);
+  const largest = counted.reduce((max, expense) => Math.max(max, expense.amount), 0);
   const isCurrentMonth = state.month === toMonthValue(new Date());
 
   elements.monthLabel.textContent = formatMonthLabel(state.month, "short");
@@ -322,20 +340,20 @@ function render() {
   elements.totalSpent.textContent = currency.format(total);
   elements.dailyAverage.textContent = compactCurrency.format(total / getDaysElapsed(state.month));
   elements.largestExpense.textContent = compactCurrency.format(largest);
-  elements.entryCount.textContent = String(monthly.length);
+  elements.entryCount.textContent = String(counted.length);
   elements.clearMonthButton.disabled = monthly.length === 0;
 
   renderPending();
   renderImportState();
   renderDelta(total);
-  renderCategories(monthly, total);
+  renderCategories(counted, total);
   renderGroups(monthly);
   renderChart();
 }
 
 function renderDelta(total) {
   const previousMonth = shiftMonth(state.month, -1);
-  const previousTotal = sum(getExpensesForMonth(previousMonth));
+  const previousTotal = sum(spending(getExpensesForMonth(previousMonth)));
   const label = formatMonthLabel(previousMonth).split(" ")[0];
 
   // Only compare against a month the records fully cover; a partly imported month gives silly percentages.
@@ -370,8 +388,8 @@ function renderCategories(expenses, total) {
       const safe = CATEGORIES.includes(category) ? category : "Other";
       const share = Math.round((amount / total) * 100);
       return `
-        <li class="category-row" style="--cat: var(--cat-${safe})">
-          <span class="category-icon"><svg aria-hidden="true"><use href="#i-${safe}" /></svg></span>
+        <li class="category-row" style="--cat: var(--cat-${catKey(safe)})">
+          <span class="category-icon"><svg aria-hidden="true"><use href="#i-${catKey(safe)}" /></svg></span>
           <span class="category-name">${escapeHtml(category)}</span>
           <span class="category-amount">${currency.format(amount)}</span>
           <span class="category-meter">
@@ -396,7 +414,7 @@ function renderGroups(expenses) {
     .map(
       ([date, items]) => `
         <section>
-          <div class="group-head"><span>${formatDayLabel(date)}</span>${items.length > 1 ? `<span>${currency.format(sum(items))}</span>` : ""}</div>
+          <div class="group-head"><span>${formatDayLabel(date)}</span>${items.length > 1 ? `<span>${currency.format(sum(spending(items)))}</span>` : ""}</div>
           <ul class="group-list">
             ${items.map(renderTransaction).join("")}
           </ul>
@@ -416,10 +434,10 @@ function renderPending() {
       const when = `${formatDayLabel(item.date)}, ${new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit" }).format(new Date(item.alertAt))}`;
       return `
         <li class="pending-item">
-          <span class="category-icon" style="--cat: var(--cat-${safe})"><svg aria-hidden="true"><use href="#i-${safe}" /></svg></span>
+          <span class="category-icon" style="--cat: var(--cat-${catKey(safe)})"><svg aria-hidden="true"><use href="#i-${catKey(safe)}" /></svg></span>
           <span class="txn-main">
             <span class="txn-title">${escapeHtml(item.description)}</span>
-            <span class="txn-meta">${item.bank ? `${escapeHtml(item.bank)} · ` : ""}${when}</span>
+            <span class="txn-meta">${item.ownTransfer ? "Own account · " : ""}${item.bank ? `${escapeHtml(item.bank)} · ` : ""}${when}</span>
           </span>
           <span class="txn-amount">${currency.format(item.amount)}</span>
           <span class="pending-actions">
@@ -458,12 +476,12 @@ function renderTransaction(expense) {
   return `
     <li>
       <button class="txn" type="button" data-id="${expense.id}" aria-label="Edit ${escapeHtml(expense.description)}, ${currency.format(expense.amount)}">
-        <span class="category-icon" style="--cat: var(--cat-${safe})"><svg aria-hidden="true"><use href="#i-${safe}" /></svg></span>
+        <span class="category-icon" style="--cat: var(--cat-${catKey(safe)})"><svg aria-hidden="true"><use href="#i-${catKey(safe)}" /></svg></span>
         <span class="txn-main">
           <span class="txn-title">${escapeHtml(expense.description)}</span>
-          <span class="txn-meta">${escapeHtml(expense.category)}${expense.bank ? ` · ${escapeHtml(expense.bank)}` : ""}</span>
+          <span class="txn-meta">${expense.ownTransfer ? "Own account" : escapeHtml(expense.category)}${expense.bank ? ` · ${escapeHtml(expense.bank)}` : ""}</span>
         </span>
-        <span class="txn-amount">${currency.format(expense.amount)}</span>
+        <span class="txn-amount${expense.ownTransfer ? " is-excluded" : ""}">${currency.format(expense.amount)}</span>
       </button>
     </li>`;
 }
@@ -483,7 +501,7 @@ function renderChart() {
   const colors = readColors();
   const days = getDaysInMonth(state.month);
   const values = new Array(days).fill(0);
-  for (const expense of getExpensesForMonth(state.month)) values[Number(expense.date.slice(-2)) - 1] += expense.amount;
+  for (const expense of spending(getExpensesForMonth(state.month))) values[Number(expense.date.slice(-2)) - 1] += expense.amount;
 
   const max = niceMax(Math.max(...values));
   const padding = { top: 12, right: 4, bottom: 26, left: 44 };
@@ -681,6 +699,7 @@ function ingestAlerts(alerts, { announceEmpty = false } = {}) {
       source: alert.source,
       alertAt: parsed.timestamp,
     };
+    markOwnTransfers([candidate]);
 
     if (state.settings.autoAdd) {
       state.expenses.unshift(toExpense(candidate));
@@ -732,8 +751,8 @@ function resolvePending(ids, add) {
 }
 
 function toExpense(candidate) {
-  const { id, amount, description, category, date, bank, source, alertAt } = candidate;
-  return { id, amount, description, category, date, bank, source, alertAt, createdAt: new Date(alertAt).toISOString() };
+  const { id, amount, description, category, date, bank, source, alertAt, ownTransfer = false } = candidate;
+  return { id, amount, description, category, date, bank, source, alertAt, ownTransfer, createdAt: new Date(alertAt).toISOString() };
 }
 
 // Remembers the category you pick for a merchant so the next alert from it is filed the same way.
@@ -759,6 +778,52 @@ function rememberedCategory(description) {
   return state.categoryMemory[merchantKey(description)] || null;
 }
 
+/* Categories & own transfers */
+
+function catKey(category) {
+  return category.replace(/\s+/g, "-");
+}
+
+// Money moved between your own accounts is listed but not counted as spending.
+function spending(expenses) {
+  return expenses.filter((expense) => !expense.ownTransfer);
+}
+
+function isToOwnName(description) {
+  const text = description.toLowerCase();
+  return state.settings.ownNames
+    .split(",")
+    .map((name) => name.toLowerCase().split(/\s+/).filter((word) => word.length > 1))
+    .some((words) => words.length >= 2 && words.every((word) => new RegExp(`\\b${escapeRegExp(word)}\\b`).test(text)));
+}
+
+function markOwnTransfers(items) {
+  let marked = 0;
+  for (const item of items) {
+    if (item.ownTransfer || !isToOwnName(item.description)) continue;
+    item.ownTransfer = true;
+    item.category = "Transfers";
+    marked += 1;
+  }
+  return marked;
+}
+
+// Imports made before the Transfers and Bank charges categories existed were mostly filed as Other.
+function recategorizeImported() {
+  if (localStorage.getItem(RECATEGORIZED_KEY)) return;
+  for (const item of [...state.expenses, ...state.pending]) {
+    if (!item.source || item.category !== "Other") continue;
+    item.category = rememberedCategory(item.description) || BankAlertParser.guessCategory(item.description);
+  }
+  saveExpenses();
+  saveJson(PENDING_KEY, state.pending);
+  localStorage.setItem(RECATEGORIZED_KEY, "1");
+}
+
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 /* Sheet & toast */
 
 function openSheet(expense, draft = null) {
@@ -773,6 +838,7 @@ function openSheet(expense, draft = null) {
   elements.descriptionInput.value = values?.description ?? "";
   elements.form.elements.category.value = values?.category ?? "Food";
   elements.dateInput.value = values?.date ?? defaultDateForMonth();
+  elements.ownTransferInput.checked = Boolean(values?.ownTransfer);
   setFieldError(elements.amountInput, elements.amountError, false);
   setFieldError(elements.descriptionInput, elements.descriptionError, false);
 

@@ -31,12 +31,15 @@
 
   const CATEGORY_RULES = [
     ["Rent", /\brent\b|landlord|\blease\b|service charge|agent fee/i],
+    ["Bank charges", /stamp duty|\bsms\b.{0,12}(?:charge|fee)|\bvat\b|commission|maintenance fee|\bcot\b|\blevy\b|\bfees?\b|\bcharges?\b/i],
     ["Utilities", /airtime|\bdata\b|recharge|\bmtn\b|airtel|\bglo\b|9mobile|dstv|gotv|startimes|showmax|electric|ekedc|ikedc|aedc|phed|kedco|ibedc|prepaid|meter|\bwater\b|\bbills?\b|internet|spectranet|smile/i],
     ["Transport", /\buber\b|\bbolt\b|indrive|rida|\bfuel\b|petrol|filling|\bstation\b|totalenergies|conoil|oando|\bbrt\b|cowry|transport|\bkeke\b|okada|parking|\btoll\b/i],
     ["Health", /pharm|hospital|clinic|medic|health|\blab\b|\bhmo\b|\bdrugs?\b/i],
     ["Entertainment", /netflix|spotify|youtube|apple\.com|cinema|filmhouse|genesis|bet9ja|sportybet|betking|1xbet|nairabet|playstation|steam|\bclub\b|lounge/i],
     ["Food", /restaurant|eatery|kitchen|\bfood|chicken republic|\bkfc\b|domino|pizza|biggs|tantalizers|sweet sensation|chowdeck|glovo|suya|\bcafe|bakery|shawarma|market|grocer|shoprite|\bspar\b|justrite/i],
     ["Shopping", /jumia|konga|\bmall\b|\bstores?\b|\bshop\b|boutique|fashion|\btemu\b|aliexpress|amazon|\bpos\b|\bweb purchase/i],
+    // Last, so a transfer that names a merchant (e.g. "TRF TO SHOPRITE") keeps the merchant's category.
+    ["Transfers", /\bnip\b|\btrf\b|\btrsf\b|\btransfer(?:red)?\b|\bfip\b|\binter ?bank\b|\bsent\b/i],
   ];
 
   function detectBank(alert) {
