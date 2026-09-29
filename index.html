@@ -36,6 +36,7 @@
       <symbol id="i-message" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H8l-5 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2Z" /><path d="M8 9h8M8 13h5" /></symbol>
       <symbol id="i-bell" viewBox="0 0 24 24"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.9 1.9 0 0 0 3.4 0" /></symbol>
       <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5" /></symbol>
+      <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M5 21h14" /></symbol>
       <symbol id="i-receipt" viewBox="0 0 24 24"><path d="M5 2v20l3-2 2 2 2-2 2 2 2-2 3 2V2l-3 2-2-2-2 2-2-2-2 2-3-2ZM9 8h6M9 12h6M9 16h4" /></symbol>
     </svg>
 
@@ -69,6 +70,18 @@
     </header>
 
     <main class="app-shell">
+      <section id="updateBanner" class="card update-banner" aria-labelledby="updateTitle" hidden>
+        <span class="setup-icon"><svg aria-hidden="true"><use href="#i-download" /></svg></span>
+        <span class="import-text">
+          <strong id="updateTitle">Update available</strong>
+          <span id="updateStatus" role="status">New version ready</span>
+        </span>
+        <button id="updateButton" class="button primary small" type="button">Update</button>
+        <button id="updateLater" class="icon-button" type="button" aria-label="Remind me later">
+          <svg><use href="#i-close" /></svg>
+        </button>
+      </section>
+
       <section class="hero" aria-labelledby="heroLabel">
         <p id="heroLabel" class="hero-label">Total spent</p>
         <p id="totalSpent" class="hero-amount">₦0.00</p>

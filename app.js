@@ -7,6 +7,8 @@ const DEMO_REMOVED_KEY = "expense-overview-demo-removed";
 const CATEGORIES = ["Food", "Rent", "Transport", "Utilities", "Health", "Shopping", "Entertainment", "Transfers", "Bank charges", "Other"];
 const RECATEGORIZED_KEY = "expense-overview-recategorized-v1";
 const DESCRIPTIONS_CLEANED_KEY = "expense-overview-descriptions-v2";
+const UPDATE_CHECK_KEY = "expense-overview-update-check";
+const LATEST_RELEASE_URL = "https://api.github.com/repos/ShoElj/Finance-tracker/releases/tags/android-latest";
 
 const currency = new Intl.NumberFormat("en-NG", { style: "currency", currency: "NGN" });
 const compactCurrency = new Intl.NumberFormat("en-NG", {
@@ -35,6 +37,7 @@ const state = {
 
 let chartLayout = null;
 let toastTimer;
+let updateDismissed = false;
 
 const $ = (selector) => document.querySelector(selector);
 const elements = {
@@ -95,6 +98,10 @@ const elements = {
   pasteButton: $("#pasteButton"),
   ownNamesInput: $("#ownNamesInput"),
   ownTransferInput: $("#ownTransferInput"),
+  updateBanner: $("#updateBanner"),
+  updateStatus: $("#updateStatus"),
+  updateButton: $("#updateButton"),
+  updateLater: $("#updateLater"),
 };
 
 const categoryOptions = CATEGORIES.map((category) => `<option value="${category}">${category}</option>`).join("");
@@ -305,10 +312,43 @@ if (native) {
     if (document.visibilityState !== "visible") return;
     syncAlerts();
     refreshImportStatus();
+    checkForUpdate();
   });
   syncAlerts();
   refreshImportStatus();
+  checkForUpdate();
 }
+
+/* App updates */
+
+elements.updateLater.addEventListener("click", () => {
+  updateDismissed = true;
+  elements.updateBanner.hidden = true;
+});
+
+elements.updateButton.addEventListener("click", async () => {
+  const latest = loadJson(UPDATE_CHECK_KEY, {});
+  if (!native || !latest.url) return;
+
+  elements.updateButton.disabled = true;
+  elements.updateStatus.textContent = "Downloading…";
+  const progress = native.addListener("AppUpdate", "progress", ({ percent }) => {
+    if (percent >= 0) elements.updateStatus.textContent = `Downloading… ${percent}%`;
+  });
+
+  try {
+    await native.nativePromise("AppUpdate", "downloadAndInstall", { url: latest.url });
+    elements.updateStatus.textContent = "Tap Update on the next screen to finish";
+  } catch (error) {
+    elements.updateStatus.textContent =
+      error?.code === "INSTALL_PERMISSION"
+        ? "Turn on “Allow from this source”, come back and tap Update again"
+        : "Download failed. Check your connection and try again";
+  } finally {
+    elements.updateButton.disabled = false;
+    progress.remove();
+  }
+});
 
 window.addEventListener("resize", () => renderChart());
 window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => renderChart());
@@ -638,6 +678,30 @@ function topRoundedRect(context, x, y, width, height, radius) {
   context.arcTo(x + width, y, x + width, y + r, r);
   context.lineTo(x + width, y + height);
   context.closePath();
+}
+
+// Asks GitHub for the newest build (at most hourly) and shows the banner if it is newer than this app.
+async function checkForUpdate() {
+  if (!native || updateDismissed) return;
+  try {
+    let latest = loadJson(UPDATE_CHECK_KEY, {});
+    if (Date.now() - (latest.checkedAt || 0) > 60 * 60 * 1000) {
+      const response = await fetch(LATEST_RELEASE_URL, { headers: { Accept: "application/vnd.github+json" } });
+      if (!response.ok) return;
+      const release = await response.json();
+      const versionCode = Number(release.body?.match(/\bBuild (\d+)/)?.[1]);
+      const asset = release.assets?.find((file) => file.name.endsWith(".apk"));
+      if (!versionCode || !asset) return;
+      latest = { checkedAt: Date.now(), versionCode, url: asset.browser_download_url };
+      saveJson(UPDATE_CHECK_KEY, latest);
+    }
+
+    const current = await native.nativePromise("AppUpdate", "getVersion");
+    const available = latest.versionCode > Number(current.versionCode);
+    elements.updateBanner.hidden = !available;
+  } catch (error) {
+    console.warn("Update check failed", error);
+  }
 }
 
 /* Bank alerts */

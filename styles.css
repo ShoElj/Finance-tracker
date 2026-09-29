@@ -644,6 +644,19 @@ h2 {
   margin-top: 12px;
 }
 
+.update-banner {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) auto 44px;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 8px 12px 14px;
+  border: 1.5px solid var(--brand);
+}
+
+.update-banner .button.primary {
+  flex: none;
+}
+
 .pending-card {
   border: 1.5px solid var(--brand);
 }
