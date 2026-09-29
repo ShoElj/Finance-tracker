@@ -1,7 +1,7 @@
 // Copies the static web app into www/, the folder Capacitor bundles into the Android app.
 import { cpSync, mkdirSync, rmSync } from "node:fs";
 
-const files = ["index.html", "styles.css", "app.js", "manifest.json", "service-worker.js", "icons"];
+const files = ["index.html", "styles.css", "alerts.js", "app.js", "manifest.json", "service-worker.js", "icons"];
 
 rmSync("www", { recursive: true, force: true });
 mkdirSync("www");

@@ -1,4 +1,9 @@
 const STORAGE_KEY = "expense-overview-items";
+const PENDING_KEY = "expense-overview-pending";
+const SEEN_ALERTS_KEY = "expense-overview-seen-alerts";
+const SETTINGS_KEY = "expense-overview-settings";
+const CATEGORY_MEMORY_KEY = "expense-overview-category-memory";
+const DEMO_REMOVED_KEY = "expense-overview-demo-removed";
 const CATEGORIES = ["Food", "Rent", "Transport", "Utilities", "Health", "Shopping", "Entertainment", "Other"];
 
 const currency = new Intl.NumberFormat("en-NG", { style: "currency", currency: "NGN" });
@@ -9,8 +14,17 @@ const compactCurrency = new Intl.NumberFormat("en-NG", {
   maximumFractionDigits: 1,
 });
 
+// Present only inside the Android app, where the BankAlerts plugin captures SMS and notifications.
+const native = window.Capacitor?.isNativePlatform?.() ? window.Capacitor : null;
+
 const state = {
   expenses: loadExpenses(),
+  pending: loadJson(PENDING_KEY, []),
+  seenAlerts: new Set(loadJson(SEEN_ALERTS_KEY, [])),
+  settings: { autoAdd: false, setupDismissed: false, ...loadJson(SETTINGS_KEY, {}) },
+  categoryMemory: loadJson(CATEGORY_MEMORY_KEY, {}),
+  importStatus: { sms: false, notifications: false },
+  draft: null,
   month: toMonthValue(new Date()),
   editingId: null,
   selectedDay: null,
@@ -55,7 +69,31 @@ const elements = {
   toast: $("#toast"),
   toastText: $("#toastText"),
   toastUndo: $("#toastUndo"),
+  importButton: $("#importButton"),
+  importBadge: $("#importBadge"),
+  setupCard: $("#setupCard"),
+  setupButton: $("#setupButton"),
+  setupDismiss: $("#setupDismiss"),
+  pendingCard: $("#pendingCard"),
+  pendingList: $("#pendingList"),
+  addAllPending: $("#addAllPending"),
+  importSheet: $("#importSheet"),
+  closeImport: $("#closeImport"),
+  nativeImport: $("#nativeImport"),
+  webImportNote: $("#webImportNote"),
+  smsStatus: $("#smsStatus"),
+  smsButton: $("#smsButton"),
+  notificationStatus: $("#notificationStatus"),
+  notificationButton: $("#notificationButton"),
+  scanButton: $("#scanButton"),
+  autoAddToggle: $("#autoAddToggle"),
+  appInfoButton: $("#appInfoButton"),
+  pasteInput: $("#pasteInput"),
+  pasteError: $("#pasteError"),
+  pasteButton: $("#pasteButton"),
 };
+
+const categoryOptions = CATEGORIES.map((category) => `<option value="${category}">${category}</option>`).join("");
 
 elements.categoryChips.innerHTML = CATEGORIES.map(
   (category, index) => `
@@ -102,8 +140,9 @@ elements.form.addEventListener("submit", (event) => {
   if (existing) {
     Object.assign(existing, fields);
   } else {
-    state.expenses.unshift({ id: createId(), ...fields, createdAt: new Date().toISOString() });
+    state.expenses.unshift({ id: createId(), ...fields, ...state.draft?.meta, createdAt: new Date().toISOString() });
   }
+  rememberCategory(fields.description, fields.category);
 
   saveExpenses();
   elements.sheet.close();
@@ -160,6 +199,86 @@ elements.chartWrap.addEventListener("pointerleave", (event) => {
   if (event.pointerType === "mouse") selectDay(null);
 });
 
+/* Bank import */
+
+elements.importButton.addEventListener("click", openImportSheet);
+elements.setupButton.addEventListener("click", openImportSheet);
+elements.setupDismiss.addEventListener("click", () => {
+  state.settings.setupDismissed = true;
+  saveJson(SETTINGS_KEY, state.settings);
+  renderImportState();
+});
+elements.closeImport.addEventListener("click", () => elements.importSheet.close());
+elements.importSheet.addEventListener("click", (event) => {
+  if (event.target === elements.importSheet) elements.importSheet.close();
+});
+
+elements.smsButton.addEventListener("click", async () => {
+  const status = await callBankAlerts("requestSms");
+  if (!status) return;
+  state.importStatus = status;
+  renderImportState();
+  if (status.sms) scanInbox();
+  else showToast("SMS permission was not allowed");
+});
+elements.notificationButton.addEventListener("click", () => callBankAlerts("openNotificationSettings"));
+elements.appInfoButton.addEventListener("click", () => callBankAlerts("openAppSettings"));
+elements.scanButton.addEventListener("click", scanInbox);
+elements.autoAddToggle.addEventListener("change", (event) => {
+  state.settings.autoAdd = event.target.checked;
+  saveJson(SETTINGS_KEY, state.settings);
+});
+
+elements.pasteButton.addEventListener("click", () => {
+  const text = elements.pasteInput.value.trim();
+  const parsed = text ? BankAlertParser.parseAlert({ body: text, timestamp: Date.now() }) : null;
+  const error = !parsed
+    ? "Couldn't find a transaction amount in that text"
+    : parsed.direction !== "debit"
+      ? "That looks like money coming in, not an expense"
+      : "";
+  elements.pasteError.textContent = error;
+  elements.pasteError.hidden = !error;
+  if (error) return;
+
+  elements.pasteInput.value = "";
+  elements.importSheet.close();
+  openSheet(null, {
+    amount: parsed.amount,
+    description: parsed.description,
+    category: rememberedCategory(parsed.description) || parsed.category,
+    date: toDateValue(new Date(parsed.timestamp)),
+    meta: { bank: parsed.bank, source: "paste" },
+  });
+});
+
+elements.pendingList.addEventListener("click", (event) => {
+  const add = event.target.closest("[data-add]");
+  const ignore = event.target.closest("[data-ignore]");
+  if (add) resolvePending([add.dataset.add], true);
+  if (ignore) resolvePending([ignore.dataset.ignore], false);
+});
+elements.pendingList.addEventListener("change", (event) => {
+  const select = event.target.closest("[data-category-for]");
+  const item = select && state.pending.find((candidate) => candidate.id === select.dataset.categoryFor);
+  if (!item) return;
+  item.category = select.value;
+  saveJson(PENDING_KEY, state.pending);
+  renderPending();
+});
+elements.addAllPending.addEventListener("click", () => resolvePending(state.pending.map((item) => item.id), true));
+
+if (native) {
+  native.addListener("BankAlerts", "alert", () => syncAlerts());
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState !== "visible") return;
+    syncAlerts();
+    refreshImportStatus();
+  });
+  syncAlerts();
+  refreshImportStatus();
+}
+
 window.addEventListener("resize", () => renderChart());
 window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => renderChart());
 
@@ -185,7 +304,7 @@ function render() {
   const largest = monthly.reduce((max, expense) => Math.max(max, expense.amount), 0);
   const isCurrentMonth = state.month === toMonthValue(new Date());
 
-  elements.monthLabel.textContent = formatMonthLabel(state.month);
+  elements.monthLabel.textContent = formatMonthLabel(state.month, "short");
   elements.nextMonth.disabled = isCurrentMonth;
   elements.heroLabel.textContent = isCurrentMonth ? "Spent so far this month" : "Total spent";
   elements.totalSpent.textContent = currency.format(total);
@@ -194,6 +313,8 @@ function render() {
   elements.entryCount.textContent = String(monthly.length);
   elements.clearMonthButton.disabled = monthly.length === 0;
 
+  renderPending();
+  renderImportState();
   renderDelta(total);
   renderCategories(monthly, total);
   renderGroups(monthly);
@@ -268,6 +389,54 @@ function renderGroups(expenses) {
     .join("");
 }
 
+function renderPending() {
+  elements.pendingCard.hidden = state.pending.length === 0;
+  elements.importBadge.hidden = state.pending.length === 0;
+  elements.importBadge.textContent = String(state.pending.length);
+  elements.addAllPending.textContent = state.pending.length > 1 ? `Add all ${state.pending.length}` : "Add";
+  elements.pendingList.innerHTML = state.pending
+    .map((item) => {
+      const safe = CATEGORIES.includes(item.category) ? item.category : "Other";
+      const when = `${formatDayLabel(item.date)}, ${new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit" }).format(new Date(item.alertAt))}`;
+      return `
+        <li class="pending-item">
+          <span class="category-icon" style="--cat: var(--cat-${safe})"><svg aria-hidden="true"><use href="#i-${safe}" /></svg></span>
+          <span class="txn-main">
+            <span class="txn-title">${escapeHtml(item.description)}</span>
+            <span class="txn-meta">${escapeHtml(item.bank)} · ${when}</span>
+          </span>
+          <span class="txn-amount">${currency.format(item.amount)}</span>
+          <span class="pending-actions">
+            <select class="pending-category" data-category-for="${item.id}" aria-label="Category for ${escapeHtml(item.description)}">
+              ${categoryOptions.replace(`value="${safe}"`, `value="${safe}" selected`)}
+            </select>
+            <button class="icon-button" type="button" data-ignore="${item.id}" aria-label="Ignore ${escapeHtml(item.description)}"><svg aria-hidden="true"><use href="#i-close" /></svg></button>
+            <button class="button primary small" type="button" data-add="${item.id}">Add</button>
+          </span>
+        </li>`;
+    })
+    .join("");
+}
+
+function renderImportState() {
+  const { sms, notifications } = state.importStatus;
+  elements.nativeImport.hidden = !native;
+  elements.webImportNote.hidden = Boolean(native);
+  elements.setupCard.hidden = !native || state.settings.setupDismissed || sms || notifications;
+  elements.autoAddToggle.checked = state.settings.autoAdd;
+  setImportButton(elements.smsButton, sms);
+  setImportButton(elements.notificationButton, notifications);
+  elements.smsStatus.textContent = sms ? "On · GTBank, First Bank, Providus" : "GTBank, First Bank, Providus";
+  elements.notificationStatus.textContent = notifications ? "On · OPay, GTWorld, FirstMobile" : "OPay, GTWorld, FirstMobile";
+  elements.scanButton.disabled = !sms;
+}
+
+function setImportButton(button, isOn) {
+  button.disabled = isOn;
+  button.classList.toggle("is-on", isOn);
+  button.textContent = isOn ? "On" : "Turn on";
+}
+
 function renderTransaction(expense) {
   const safe = CATEGORIES.includes(expense.category) ? expense.category : "Other";
   return `
@@ -276,7 +445,7 @@ function renderTransaction(expense) {
         <span class="category-icon" style="--cat: var(--cat-${safe})"><svg aria-hidden="true"><use href="#i-${safe}" /></svg></span>
         <span class="txn-main">
           <span class="txn-title">${escapeHtml(expense.description)}</span>
-          <span class="txn-meta">${escapeHtml(expense.category)}</span>
+          <span class="txn-meta">${escapeHtml(expense.category)}${expense.bank ? ` · ${escapeHtml(expense.bank)}` : ""}</span>
         </span>
         <span class="txn-amount">${currency.format(expense.amount)}</span>
       </button>
@@ -433,18 +602,159 @@ function topRoundedRect(context, x, y, width, height, radius) {
   context.closePath();
 }
 
+/* Bank alerts */
+
+async function callBankAlerts(method, options = {}) {
+  if (!native) return null;
+  try {
+    return await native.nativePromise("BankAlerts", method, options);
+  } catch (error) {
+    console.warn(`BankAlerts.${method} failed`, error);
+    return null;
+  }
+}
+
+async function refreshImportStatus() {
+  const status = await callBankAlerts("getStatus");
+  if (!status) return;
+  state.importStatus = status;
+  renderImportState();
+}
+
+async function syncAlerts() {
+  const result = await callBankAlerts("takePending");
+  if (result?.alerts?.length) ingestAlerts(result.alerts);
+}
+
+async function scanInbox() {
+  elements.scanButton.disabled = true;
+  elements.scanButton.textContent = "Scanning…";
+  const result = await callBankAlerts("readInbox", { days: 30 });
+  elements.scanButton.textContent = "Scan SMS from the last 30 days";
+  renderImportState();
+  if (result) ingestAlerts(result.alerts, { announceEmpty: true });
+}
+
+function openImportSheet() {
+  renderImportState();
+  refreshImportStatus();
+  elements.pasteError.hidden = true;
+  elements.importSheet.showModal();
+}
+
+function ingestAlerts(alerts, { announceEmpty = false } = {}) {
+  let added = 0;
+  let queued = 0;
+
+  for (const alert of alerts) {
+    if (!alert?.id || state.seenAlerts.has(alert.id)) continue;
+    state.seenAlerts.add(alert.id);
+
+    const parsed = BankAlertParser.parseAlert(alert);
+    if (!parsed || parsed.direction !== "debit" || isDuplicateAlert(parsed, alert.source)) continue;
+
+    const candidate = {
+      id: createId(),
+      amount: parsed.amount,
+      description: parsed.description,
+      category: rememberedCategory(parsed.description) || parsed.category,
+      date: toDateValue(new Date(parsed.timestamp)),
+      bank: parsed.bank,
+      source: alert.source,
+      alertAt: parsed.timestamp,
+    };
+
+    if (state.settings.autoAdd) {
+      state.expenses.unshift(toExpense(candidate));
+      added += 1;
+    } else {
+      state.pending.push(candidate);
+      queued += 1;
+    }
+  }
+
+  state.pending.sort((a, b) => b.alertAt - a.alertAt);
+  saveJson(SEEN_ALERTS_KEY, [...state.seenAlerts].slice(-3000));
+  saveJson(PENDING_KEY, state.pending);
+  saveExpenses();
+  render();
+
+  if (added) showToast(`${added} bank ${added === 1 ? "expense" : "expenses"} added`);
+  else if (queued) showToast(`${queued} new from your banks to review`);
+  else if (announceEmpty) showToast("No new bank debits found");
+}
+
+// A bank's SMS and its app notification describe the same debit; keep only the first one seen.
+function isDuplicateAlert(parsed, source) {
+  const fifteenMinutes = 15 * 60 * 1000;
+  return [...state.pending, ...state.expenses].some(
+    (item) =>
+      item.alertAt &&
+      item.source !== source &&
+      item.bank === parsed.bank &&
+      item.amount === parsed.amount &&
+      Math.abs(item.alertAt - parsed.timestamp) < fifteenMinutes,
+  );
+}
+
+function resolvePending(ids, add) {
+  const chosen = new Set(ids);
+  const items = state.pending.filter((item) => chosen.has(item.id));
+  state.pending = state.pending.filter((item) => !chosen.has(item.id));
+  if (add) {
+    for (const item of items) {
+      state.expenses.unshift(toExpense(item));
+      rememberCategory(item.description, item.category);
+    }
+  }
+  saveJson(PENDING_KEY, state.pending);
+  saveExpenses();
+  render();
+  if (add) showToast(items.length === 1 ? "Expense added" : `${items.length} expenses added`);
+}
+
+function toExpense(candidate) {
+  const { id, amount, description, category, date, bank, source, alertAt } = candidate;
+  return { id, amount, description, category, date, bank, source, alertAt, createdAt: new Date(alertAt).toISOString() };
+}
+
+// Remembers the category you pick for a merchant so the next alert from it is filed the same way.
+function merchantKey(description) {
+  const noise = new Set(["pos", "purchase", "nip", "trf", "transfer", "payment", "web", "the", "for", "from", "and", "via", "ref"]);
+  return description
+    .toLowerCase()
+    .replace(/[^a-z ]/g, " ")
+    .split(/\s+/)
+    .filter((word) => word.length > 2 && !noise.has(word))
+    .slice(0, 3)
+    .join(" ");
+}
+
+function rememberCategory(description, category) {
+  const key = merchantKey(description);
+  if (!key) return;
+  state.categoryMemory[key] = category;
+  saveJson(CATEGORY_MEMORY_KEY, state.categoryMemory);
+}
+
+function rememberedCategory(description) {
+  return state.categoryMemory[merchantKey(description)] || null;
+}
+
 /* Sheet & toast */
 
-function openSheet(expense) {
+function openSheet(expense, draft = null) {
+  state.draft = expense ? null : draft;
   state.editingId = expense?.id ?? null;
   elements.sheetTitle.textContent = expense ? "Edit expense" : "Add expense";
   elements.saveButton.textContent = expense ? "Save changes" : "Save expense";
   elements.deleteButton.hidden = !expense;
 
-  elements.amountInput.value = expense ? expense.amount : "";
-  elements.descriptionInput.value = expense?.description ?? "";
-  elements.form.elements.category.value = expense?.category ?? "Food";
-  elements.dateInput.value = expense?.date ?? defaultDateForMonth();
+  const values = expense ?? draft;
+  elements.amountInput.value = values?.amount ?? "";
+  elements.descriptionInput.value = values?.description ?? "";
+  elements.form.elements.category.value = values?.category ?? "Food";
+  elements.dateInput.value = values?.date ?? defaultDateForMonth();
   setFieldError(elements.amountInput, elements.amountError, false);
   setFieldError(elements.descriptionInput, elements.descriptionError, false);
 
@@ -483,35 +793,34 @@ function sum(expenses) {
 }
 
 function loadExpenses() {
+  const expenses = loadJson(STORAGE_KEY, []);
+  if (localStorage.getItem(DEMO_REMOVED_KEY)) return expenses;
+
+  // Earlier versions filled a new install with sample expenses; clear those out once.
+  const demo = new Set([
+    "Groceries|82.45|03", "Train pass|48|05", "Electric bill|96.2|09", "Dinner|34.5|12",
+    "Groceries|18500|03", "Bus fare|4800|05", "Electricity token|15000|09", "Dinner|9500|12",
+  ]);
+  const cleaned = expenses.filter((expense) => !demo.has(`${expense.description}|${expense.amount}|${expense.date.slice(-2)}`));
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(cleaned));
+  localStorage.setItem(DEMO_REMOVED_KEY, "1");
+  return cleaned;
+}
+
+function loadJson(key, fallback) {
   try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY)) || seedExpenses();
+    return JSON.parse(localStorage.getItem(key)) ?? fallback;
   } catch {
-    return seedExpenses();
+    return fallback;
   }
+}
+
+function saveJson(key, value) {
+  localStorage.setItem(key, JSON.stringify(value));
 }
 
 function saveExpenses() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state.expenses));
-}
-
-function seedExpenses() {
-  const today = new Date();
-  const month = toMonthValue(today);
-  const samples = [
-    ["Groceries", 18500, "Food", "03"],
-    ["Bus fare", 4800, "Transport", "05"],
-    ["Electricity token", 15000, "Utilities", "09"],
-    ["Dinner", 9500, "Food", "12"],
-  ];
-
-  return samples.map(([description, amount, category, day], index) => ({
-    id: createId(),
-    description,
-    amount,
-    category,
-    date: `${month}-${day}`,
-    createdAt: new Date(today.getTime() - index * 86400000).toISOString(),
-  }));
 }
 
 function createId() {
@@ -550,9 +859,9 @@ function toDateValue(date) {
   return `${toMonthValue(date)}-${String(date.getDate()).padStart(2, "0")}`;
 }
 
-function formatMonthLabel(monthValue) {
+function formatMonthLabel(monthValue, style = "long") {
   const [year, month] = monthValue.split("-").map(Number);
-  return new Intl.DateTimeFormat("en-GB", { month: "long", year: "numeric" }).format(new Date(year, month - 1, 1));
+  return new Intl.DateTimeFormat("en-GB", { month: style, year: "numeric" }).format(new Date(year, month - 1, 1));
 }
 
 function formatDayLabel(dateValue) {

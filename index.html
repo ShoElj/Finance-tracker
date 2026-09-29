@@ -23,12 +23,17 @@
       <symbol id="i-Entertainment" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M7 4v16M17 4v16M3 9h4M3 15h4M17 9h4M17 15h4" /></symbol>
       <symbol id="i-Other" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.5" /><circle cx="12" cy="12" r="1.5" /><circle cx="19" cy="12" r="1.5" /></symbol>
       <symbol id="i-chevron-left" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6" /></symbol>
+      <symbol id="i-chevron-down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6" /></symbol>
       <symbol id="i-chevron-right" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6" /></symbol>
       <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" /></symbol>
       <symbol id="i-close" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12" /></symbol>
       <symbol id="i-trash" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M6 6l1 14a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-14" /></symbol>
       <symbol id="i-up" viewBox="0 0 24 24"><path d="M7 17 17 7M8 7h9v9" /></symbol>
       <symbol id="i-down" viewBox="0 0 24 24"><path d="M7 7l10 10M17 8v9H8" /></symbol>
+      <symbol id="i-bank" viewBox="0 0 24 24"><path d="M3 21h18M4 10h16M5 10v8M10 10v8M14 10v8M19 10v8M12 3 3 8h18l-9-5Z" /></symbol>
+      <symbol id="i-message" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H8l-5 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2Z" /><path d="M8 9h8M8 13h5" /></symbol>
+      <symbol id="i-bell" viewBox="0 0 24 24"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.9 1.9 0 0 0 3.4 0" /></symbol>
+      <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5" /></symbol>
       <symbol id="i-receipt" viewBox="0 0 24 24"><path d="M5 2v20l3-2 2 2 2-2 2 2 2-2 3 2V2l-3 2-2-2-2 2-2-2-2 2-3-2ZM9 8h6M9 12h6M9 16h4" /></symbol>
     </svg>
 
@@ -36,19 +41,27 @@
       <div class="appbar-inner">
         <div>
           <p class="eyebrow">Expense Overview</p>
-          <h1 id="monthLabel">This month</h1>
+          <h1>
+            <label class="month-title">
+              <span id="monthLabel">This month</span>
+              <svg aria-hidden="true"><use href="#i-chevron-down" /></svg>
+              <input id="monthInput" type="month" aria-label="Pick a month" />
+            </label>
+          </h1>
         </div>
+        <div class="appbar-actions">
+        <button id="importButton" class="icon-button import-button" type="button" aria-label="Automatic bank import">
+          <svg><use href="#i-bank" /></svg>
+          <span id="importBadge" class="badge" hidden></span>
+        </button>
         <div class="month-nav" role="group" aria-label="Change month">
           <button id="prevMonth" class="icon-button" type="button" aria-label="Previous month">
             <svg><use href="#i-chevron-left" /></svg>
           </button>
-          <label class="month-picker">
-            <span class="visually-hidden">Pick a month</span>
-            <input id="monthInput" type="month" />
-          </label>
           <button id="nextMonth" class="icon-button" type="button" aria-label="Next month">
             <svg><use href="#i-chevron-right" /></svg>
           </button>
+        </div>
         </div>
       </div>
     </header>
@@ -58,6 +71,29 @@
         <p id="heroLabel" class="hero-label">Total spent</p>
         <p id="totalSpent" class="hero-amount">₦0.00</p>
         <p id="monthDelta" class="hero-delta"></p>
+      </section>
+
+      <section id="setupCard" class="card setup-card" aria-labelledby="setupTitle" hidden>
+        <span class="setup-icon"><svg aria-hidden="true"><use href="#i-bank" /></svg></span>
+        <div>
+          <h2 id="setupTitle">Track your banks automatically</h2>
+          <p class="card-sub">Pick up spending from GTBank, First Bank, Providus and OPay alerts, so you don't have to type it in.</p>
+          <div class="setup-actions">
+            <button id="setupButton" class="button primary small" type="button">Set up</button>
+            <button id="setupDismiss" class="text-button" type="button">Not now</button>
+          </div>
+        </div>
+      </section>
+
+      <section id="pendingCard" class="card pending-card" aria-labelledby="pendingTitle" hidden>
+        <div class="card-head">
+          <div>
+            <h2 id="pendingTitle">New from your banks</h2>
+            <p class="card-sub">Check the category, then add or ignore</p>
+          </div>
+          <button id="addAllPending" class="text-button" type="button">Add all</button>
+        </div>
+        <ul id="pendingList" class="pending-list"></ul>
       </section>
 
       <section class="stats" aria-label="Monthly summary">
@@ -159,11 +195,65 @@
       </form>
     </dialog>
 
+    <dialog id="importSheet" class="sheet" aria-labelledby="importTitle">
+      <div class="sheet-body">
+        <div class="sheet-grip" aria-hidden="true"></div>
+        <div class="sheet-head">
+          <h2 id="importTitle">Automatic import</h2>
+          <button id="closeImport" class="icon-button" type="button" aria-label="Close">
+            <svg><use href="#i-close" /></svg>
+          </button>
+        </div>
+        <p class="sheet-intro">New bank debits appear for you to confirm. Your messages never leave this phone.</p>
+
+        <div id="nativeImport" class="import-list">
+          <div class="import-row">
+            <span class="import-icon"><svg aria-hidden="true"><use href="#i-message" /></svg></span>
+            <span class="import-text">
+              <strong>SMS alerts</strong>
+              <span id="smsStatus">GTBank, First Bank, Providus</span>
+            </span>
+            <button id="smsButton" class="button primary small" type="button">Turn on</button>
+          </div>
+          <div class="import-row">
+            <span class="import-icon"><svg aria-hidden="true"><use href="#i-bell" /></svg></span>
+            <span class="import-text">
+              <strong>Banking app notifications</strong>
+              <span id="notificationStatus">OPay, GTWorld, FirstMobile</span>
+            </span>
+            <button id="notificationButton" class="button primary small" type="button">Turn on</button>
+          </div>
+          <button id="scanButton" class="button ghost" type="button">Scan SMS from the last 30 days</button>
+          <label class="switch-row">
+            <span class="import-text">
+              <strong>Add without asking</strong>
+              <span>Skip the review step for new debits</span>
+            </span>
+            <input id="autoAddToggle" type="checkbox" role="switch" />
+          </label>
+          <p class="hint">
+            Android says “Restricted setting”? Open
+            <button id="appInfoButton" class="link-button" type="button">App info</button>, tap ⋮ at the top, choose
+            “Allow restricted settings”, then come back and try again.
+          </p>
+        </div>
+        <p id="webImportNote" class="hint" hidden>Automatic import works in the Android app. Here you can paste an alert instead.</p>
+
+        <label class="field">
+          <span class="field-label">Paste a bank alert</span>
+          <textarea id="pasteInput" rows="3" placeholder="Paste an SMS or notification, e.g. Amt: NGN5,000.00 DR Desc: …"></textarea>
+          <span id="pasteError" class="field-error" hidden></span>
+        </label>
+        <button id="pasteButton" class="button ghost" type="button">Read alert</button>
+      </div>
+    </dialog>
+
     <div id="toast" class="toast" role="status" aria-live="polite" hidden>
       <span id="toastText"></span>
       <button id="toastUndo" class="text-button" type="button">Undo</button>
     </div>
 
+    <script src="alerts.js"></script>
     <script src="app.js"></script>
   </body>
 </html>

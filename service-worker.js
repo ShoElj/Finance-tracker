@@ -1,8 +1,9 @@
-const CACHE_NAME = "expense-overview-v3";
+const CACHE_NAME = "expense-overview-v4";
 const APP_FILES = [
   "./",
   "./index.html",
   "./styles.css",
+  "./alerts.js",
   "./app.js",
   "./manifest.json",
   "./icons/icon-192.svg",
