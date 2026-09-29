@@ -41,7 +41,8 @@ jobs:
           ANDROID_KEYSTORE_PATH="$RUNNER_TEMP/release.jks" ./gradlew assembleRelease --no-daemon
           rm "$RUNNER_TEMP/release.jks"
           cp app/build/outputs/apk/release/app-release.apk ../expense-overview.apk
-          "$ANDROID_HOME"/build-tools/*/apksigner verify --print-certs ../expense-overview.apk | grep -i "SHA-256"
+          APKSIGNER="$(ls -d "$ANDROID_HOME"/build-tools/*/ | sort -V | tail -1)apksigner"
+          "$APKSIGNER" verify --print-certs ../expense-overview.apk | grep -i "SHA-256"
 
       - name: Build debug APK (no signing key configured)
         if: env.KEYSTORE_BASE64 == ''
