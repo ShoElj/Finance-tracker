@@ -39,6 +39,7 @@
     ["Transport", /\buber\b|\bbolt\b|indrive|rida|\bfuel\b|petrol|filling|\bstation\b|totalenergies|conoil|oando|\bbrt\b|cowry|transport|\bkeke\b|okada|parking|\btoll\b/i],
     ["Health", /pharm|hospital|clinic|medic|health|\blab\b|\bhmo\b|\bdrugs?\b/i],
     ["Entertainment", /netflix|spotify|youtube|apple\.com|cinema|filmhouse|genesis|bet9ja|sportybet|betking|1xbet|nairabet|playstation|steam|\bclub\b|lounge/i],
+    ["Subscriptions", /google|anthropic|claude|openai|chatgpt|canva|microsoft|adobe|icloud|\bdomain\b|hosting|namecheap|godaddy|whogohost|qservers|truehost|subscription|\bsub\b/i],
     ["Food", /restaurant|eatery|kitchen|\bfood|chicken republic|\bkfc\b|domino|pizza|biggs|tantalizers|sweet sensation|chowdeck|glovo|suya|\bcafe|bakery|shawarma|market|grocer|shoprite|\bspar\b|justrite/i],
     ["Shopping", /jumia|konga|\bmall\b|\bstores?\b|\bshop\b|boutique|fashion|\btemu\b|aliexpress|amazon|\bpos\b|\bweb purchase/i],
     // Last, so a transfer that names a merchant (e.g. "TRF TO SHOPRITE") keeps the merchant's category.
@@ -114,9 +115,11 @@
   function tidy(value, direction = "debit") {
     // Drop a leading reference number or stray dash, e.g. "-Lemfi Transfer-…" or "000123-Lemfi Transfer-…".
     let text = value.replace(/\s+/g, " ").replace(/^\s*\d*\s*[-–:.,;]+\s*/, "").replace(/[\s.,;:\-]+$/, "").trim();
+    // First Bank card payments start with the bank's own code, e.g. "FBN/Google Infinity Loop/…".
+    text = text.replace(/^(?:FBN|GTB|UBA|ZIB|FCMB)\s*\/\s*/i, "");
     // Bank narrations are often in CAPS; title-case those words so the list is easier to read.
     text = text.replace(/\b[A-Z][A-Z']+\b/g, (word) => word[0] + word.slice(1).toLowerCase());
-    text = text.replace(/\b(Pos|Nip|Trf|Atm|Ussd|Web|Mtn|Dstv|Gotv|Kfc|Uba|Gtb|Fbn)\b/g, (word) => word.toUpperCase());
+    text = text.replace(/\b(Pos|Nip|Trf|Atm|Ussd|Web|Mtn|Dstv|Gotv|Kfc|Uba|Gtb|Fbn|Sms|Vat|Ccc|Nibss)\b/g, (word) => word.toUpperCase());
     text = text.charAt(0).toUpperCase() + text.slice(1);
     // "Outward Transfer To Opay - Daniel Ayoola" → "To Daniel Ayoola (Opay)", so the recipient isn't cut off in the list.
     const outward = text.match(/^(?:outward |nip |inter-?bank )?(?:transfer|trf) to ([^-–]{2,25}?)\s*[-–]\s*(.+)$/i);

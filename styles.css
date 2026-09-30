@@ -28,6 +28,7 @@
   --cat-Health: #e87ba4;
   --cat-Shopping: #008300;
   --cat-Entertainment: #4a3aa7;
+  --cat-Subscriptions: #0e7c9a;
   --cat-Transfers: #54698f;
   --cat-Bank-charges: #e34948;
   --cat-Income: #0f7a5c;
@@ -70,6 +71,7 @@
     --cat-Health: #d55181;
     --cat-Shopping: #1f9a1f;
     --cat-Entertainment: #9085e9;
+    --cat-Subscriptions: #3fb0cf;
     --cat-Transfers: #8ea3c8;
     --cat-Bank-charges: #e66767;
     --cat-Income: #34c28f;
@@ -639,6 +641,9 @@ h2 {
 .txn-meta {
   color: var(--ink-3);
   font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .txn-amount {

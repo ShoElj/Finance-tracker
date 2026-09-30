@@ -156,3 +156,14 @@ test("tidies incoming app-transfer narrations", () => {
   assert.equal(cleanDescription("-POS Transfer- Olas"), "POS Transfer- Olas");
   assert.equal(cleanDescription("MTN Airtime 08031234567"), "MTN Airtime 08031234567");
 });
+
+test("online services go to Subscriptions", () => {
+  const card = (desc) => parseAlert({ sender: "FirstBank", body: `Txn: Debit\nAcct:30******78\nAmt:NGN504.70\nDes:${desc}\nBal:NGN1.00` });
+  assert.equal(card("FBN/GOOGLE INFINITY LOOP/MOUNTAIN VIEW").category, "Subscriptions");
+  assert.equal(card("FBN/GOOGLE INFINITY LOOP/MOUNTAIN VIEW").description, "Google Infinity Loop/Mountain View");
+  assert.equal(card("FBN/ANTHROPIC* CLAUDE SUB/SAN FRANCISCO").category, "Subscriptions");
+  assert.equal(parseAlert({ sender: "GTBank", body: "Amt:NGN43,482.42 DR\nDesc:DOMAIN REGISTRATION TO PAYSTACK\nBal:NGN1.00" }).category, "Subscriptions");
+  // Streaming stays Entertainment; SMS charges keep their acronym.
+  assert.equal(card("NETFLIX.COM").category, "Entertainment");
+  assert.equal(parseAlert({ sender: "GTBank", body: "Amt: NGN10.75 DR Desc: SMS ALERT CHARGES" }).description, "SMS Alert Charges");
+});

@@ -4,9 +4,9 @@ const SEEN_ALERTS_KEY = "expense-overview-seen-alerts";
 const SETTINGS_KEY = "expense-overview-settings";
 const CATEGORY_MEMORY_KEY = "expense-overview-category-memory";
 const DEMO_REMOVED_KEY = "expense-overview-demo-removed";
-const CATEGORIES = ["Food", "Rent", "Transport", "Utilities", "Health", "Shopping", "Entertainment", "Transfers", "Bank charges", "Income", "Other"];
-const RECATEGORIZED_KEY = "expense-overview-recategorized-v1";
-const DESCRIPTIONS_CLEANED_KEY = "expense-overview-descriptions-v3";
+const CATEGORIES = ["Food", "Rent", "Transport", "Utilities", "Health", "Shopping", "Entertainment", "Subscriptions", "Transfers", "Bank charges", "Income", "Other"];
+const RECATEGORIZED_KEY = "expense-overview-recategorized-v2";
+const DESCRIPTIONS_CLEANED_KEY = "expense-overview-descriptions-v4";
 const UPDATE_CHECK_KEY = "expense-overview-update-check";
 const SEEN_CREDITS_KEY = "expense-overview-seen-credits";
 const LAST_SCAN_KEY = "expense-overview-last-scan";
@@ -827,7 +827,12 @@ function ingestAlerts(alerts, { announceEmpty = false } = {}) {
     const seen = parsed?.direction === "credit" ? state.seenCredits : state.seenAlerts;
     if (seen.has(alert.id)) continue;
     seen.add(alert.id);
-    if (!parsed || isDuplicateAlert(parsed, alert.source)) continue;
+    if (!parsed) continue;
+    const existing = findDuplicate(parsed, alert.source);
+    if (existing) {
+      improveFromAlert(existing, parsed, alert);
+      continue;
+    }
 
     const candidate = {
       id: createId(),
@@ -838,6 +843,7 @@ function ingestAlerts(alerts, { announceEmpty = false } = {}) {
       bank: parsed.bank,
       source: alert.source,
       alertAt: parsed.timestamp,
+      raw: alertText(alert),
     };
     markOwnTransfers([candidate]);
 
@@ -864,9 +870,9 @@ function ingestAlerts(alerts, { announceEmpty = false } = {}) {
 
 // A bank's SMS and its app notification describe the same transaction, and a rescan can meet one
 // already recorded; keep only the first one seen.
-function isDuplicateAlert(parsed, source) {
+function findDuplicate(parsed, source) {
   const fifteenMinutes = 15 * 60 * 1000;
-  return [...state.pending, ...state.expenses].some(
+  return [...state.pending, ...state.expenses].find(
     (item) =>
       item.alertAt &&
       (item.source !== source || item.alertAt === parsed.timestamp) &&
@@ -874,6 +880,22 @@ function isDuplicateAlert(parsed, source) {
       item.amount === parsed.amount &&
       Math.abs(item.alertAt - parsed.timestamp) < fifteenMinutes,
   );
+}
+
+// The alert's original text stays on the phone so improved rules can re-read it later.
+function alertText(alert) {
+  return [alert.title, alert.body].filter(Boolean).join("\n");
+}
+
+// A rescan meeting an entry imported before the parser understood its bank's format fills in
+// the proper description and category (only where they are still the vague defaults).
+function improveFromAlert(item, parsed, alert) {
+  if (item.raw) return;
+  item.raw = alertText(alert);
+  if (/^.* (payment|credit)$/.test(item.description) && item.description.startsWith(item.bank || "Bank")) {
+    item.description = parsed.description;
+  }
+  if (item.category === "Other" && parsed.direction === "debit") item.category = rememberedCategory(parsed.description) || parsed.category;
 }
 
 function resolvePending(ids, add) {
@@ -893,8 +915,8 @@ function resolvePending(ids, add) {
 }
 
 function toExpense(candidate) {
-  const { id, amount, description, category, date, bank, source, alertAt, ownTransfer = false } = candidate;
-  return { id, amount, description, category, date, bank, source, alertAt, ownTransfer, createdAt: new Date(alertAt).toISOString() };
+  const { id, amount, description, category, date, bank, source, alertAt, raw, ownTransfer = false } = candidate;
+  return { id, amount, description, category, date, bank, source, alertAt, raw, ownTransfer, createdAt: new Date(alertAt).toISOString() };
 }
 
 // Remembers the category you pick for a merchant so the next alert from it is filed the same way.
@@ -960,7 +982,7 @@ function markOwnTransfers(items) {
   return marked;
 }
 
-// Imports made before the Transfers and Bank charges categories existed were mostly filed as Other.
+// Re-sorts imported entries still filed as Other whenever new categories or rules are added.
 function recategorizeImported() {
   if (localStorage.getItem(RECATEGORIZED_KEY)) return;
   for (const item of [...state.expenses, ...state.pending]) {
