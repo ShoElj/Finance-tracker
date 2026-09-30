@@ -30,6 +30,7 @@
   --cat-Entertainment: #4a3aa7;
   --cat-Transfers: #54698f;
   --cat-Bank-charges: #e34948;
+  --cat-Income: #0f7a5c;
   --cat-Other: #7a807c;
 
   --radius: 20px;
@@ -71,6 +72,7 @@
     --cat-Entertainment: #9085e9;
     --cat-Transfers: #8ea3c8;
     --cat-Bank-charges: #e66767;
+    --cat-Income: #34c28f;
     --cat-Other: #8a908c;
   }
 }
@@ -323,6 +325,13 @@ h1 {
   line-height: 1.1;
   letter-spacing: -0.02em;
   overflow-wrap: anywhere;
+}
+
+.hero-in {
+  margin-top: 4px;
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 15px;
+  font-weight: 600;
 }
 
 .hero-delta {
@@ -582,6 +591,10 @@ h2 {
 .txn-amount {
   font-weight: 700;
   font-variant-numeric: tabular-nums;
+}
+
+.txn-amount.is-income {
+  color: var(--brand);
 }
 
 .txn-amount.is-excluded {

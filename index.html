@@ -23,6 +23,7 @@
       <symbol id="i-Entertainment" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M7 4v16M17 4v16M3 9h4M3 15h4M17 9h4M17 15h4" /></symbol>
       <symbol id="i-Transfers" viewBox="0 0 24 24"><path d="M4 7h14l-4-4M20 17H6l4 4" /></symbol>
       <symbol id="i-Bank-charges" viewBox="0 0 24 24"><circle cx="7" cy="7" r="2.5" /><circle cx="17" cy="17" r="2.5" /><path d="M19 5 5 19" /></symbol>
+      <symbol id="i-Income" viewBox="0 0 24 24"><path d="M17 7 7 17M16 17H7V8" /></symbol>
       <symbol id="i-Other" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.5" /><circle cx="12" cy="12" r="1.5" /><circle cx="19" cy="12" r="1.5" /></symbol>
       <symbol id="i-chevron-left" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6" /></symbol>
       <symbol id="i-chevron-down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6" /></symbol>
@@ -85,6 +86,7 @@
       <section class="hero" aria-labelledby="heroLabel">
         <p id="heroLabel" class="hero-label">Total spent</p>
         <p id="totalSpent" class="hero-amount">₦0.00</p>
+        <p id="moneyIn" class="hero-in" hidden></p>
         <p id="monthDelta" class="hero-delta"></p>
       </section>
 
@@ -246,7 +248,7 @@
             </span>
             <button id="notificationButton" class="button primary small" type="button">Turn on</button>
           </div>
-          <button id="scanButton" class="button ghost" type="button">Scan SMS from the last 30 days</button>
+          <button id="scanButton" class="button ghost" type="button">Check SMS now (last 30 days)</button>
           <label class="switch-row">
             <span class="import-text">
               <strong>Add without asking</strong>
@@ -268,6 +270,11 @@
             other spellings your banks use, separated by commas.
           </span>
         </label>
+
+        <p class="hint version-row">
+          <span id="appVersion">Version</span> ·
+          <button id="checkUpdateButton" class="link-button" type="button">Check for updates</button>
+        </p>
 
         <p id="webImportNote" class="hint" hidden>Automatic import works in the Android app. Here you can paste an alert instead.</p>
 

@@ -134,3 +134,14 @@ test("puts the recipient first in GTBank outward transfers", () => {
   assert.equal(cleanDescription("Outward Transfer To Moniemfb - POS Transfer- Shop"), "To POS Transfer- Shop (Moniemfb)");
   assert.equal(cleanDescription("To John Ade Doe (Opay)"), "To John Ade Doe (Opay)");
 });
+
+test("credits become Income with the sender as description", () => {
+  const opay = parseAlert({ app: "OPay", title: "Money Received", body: "You have received ₦10,000.00 from JANE DOE." });
+  assert.equal(opay.direction, "credit");
+  assert.equal(opay.category, "Income");
+  assert.equal(opay.description, "From Jane Doe");
+  const gtb = parseAlert({ sender: "GTBank", body: "Acct:******0000\nAmt:NGN20,000.00 CR\nDesc:INWARD TRANSFER FROM OPAY - JANE DOE\nBal:NGN25,000.10" });
+  assert.equal(gtb.category, "Income");
+  assert.equal(gtb.description, "From Jane Doe (Opay)");
+  assert.equal(parseAlert({ body: REAL_CREDIT }).category, "Income");
+});

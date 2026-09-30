@@ -25,6 +25,9 @@
   const COUNTERPARTY =
     /\b(?:to|for|at)\s+([A-Za-z0-9][A-Za-z0-9 &'.\-\/]{1,40}?)(?=\s*(?:[,;]|\.\s|\.$|\bon\b|\bvia\b|\bwith\b|\bref\b|\bat\b|\bfrom\b|\n|$))/i;
 
+  const SENDER =
+    /\bfrom\s+([A-Za-z0-9][A-Za-z0-9 &'.\-\/]{1,40}?)(?=\s*(?:[,;]|\.\s|\.$|\bon\b|\bvia\b|\bwith\b|\bref\b|\bto\b|\binto\b|\n|$))/i;
+
   const DATE_FIELD =
     /\b(?:date|dt)\s*[:\-]\s*(\d{1,4})[-\/ ]([0-9]{1,2}|[A-Za-z]{3,9})[-\/ ](\d{2,4})(?:[ T,]+(\d{1,2}):(\d{2})(?::\d{2})?\s*([AP]M)?)?/i;
   const MONTHS = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
@@ -97,9 +100,11 @@
     return debit < credit ? "debit" : "credit";
   }
 
-  function findDescription(text, title) {
+  function findDescription(text, title, direction) {
     const field = text.match(DESCRIPTION_FIELD);
     if (field) return tidy(field[1]);
+    const sender = direction === "credit" && text.match(SENDER);
+    if (sender && !/^(?:NGN|N\d|₦|your|you)/i.test(sender[1])) return tidy(sender[0]);
     const counterparty = text.match(COUNTERPARTY);
     if (counterparty && !/^(?:NGN|N\d|₦|your|you)/i.test(counterparty[1])) return tidy(counterparty[0]);
     if (title && !MONEY.test(title)) return tidy(title);
@@ -115,6 +120,8 @@
     // "Outward Transfer To Opay - Daniel Ayoola" → "To Daniel Ayoola (Opay)", so the recipient isn't cut off in the list.
     const outward = text.match(/^(?:outward |nip |inter-?bank )?(?:transfer|trf) to ([^-–]{2,25}?)\s*[-–]\s*(.+)$/i);
     if (outward) text = `To ${outward[2].trim()} (${outward[1].trim()})`;
+    const inward = text.match(/^(?:inward |nip |inter-?bank )?(?:transfer|trf) from ([^-–]{2,25}?)\s*[-–]\s*(.+)$/i);
+    if (inward) text = `From ${inward[2].trim()} (${inward[1].trim()})`;
     return text.length > 60 ? `${text.slice(0, 57).trimEnd()}…` : text;
   }
 
@@ -138,13 +145,13 @@
     if (!amount || !direction) return null;
 
     const bank = detectBank(alert);
-    const description = findDescription(body, title) || `${bank || "Bank"} ${direction === "debit" ? "payment" : "credit"}`;
+    const description = findDescription(body, title, direction) || `${bank || "Bank"} ${direction === "debit" ? "payment" : "credit"}`;
     return {
       amount: Math.round(amount * 100) / 100,
       direction,
       description,
       bank,
-      category: guessCategory(`${description} ${body}`),
+      category: direction === "credit" ? "Income" : guessCategory(`${description} ${body}`),
       timestamp: findDate(text) ?? (Number(alert.timestamp) || Date.now()),
     };
   }

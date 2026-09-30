@@ -4,10 +4,12 @@ const SEEN_ALERTS_KEY = "expense-overview-seen-alerts";
 const SETTINGS_KEY = "expense-overview-settings";
 const CATEGORY_MEMORY_KEY = "expense-overview-category-memory";
 const DEMO_REMOVED_KEY = "expense-overview-demo-removed";
-const CATEGORIES = ["Food", "Rent", "Transport", "Utilities", "Health", "Shopping", "Entertainment", "Transfers", "Bank charges", "Other"];
+const CATEGORIES = ["Food", "Rent", "Transport", "Utilities", "Health", "Shopping", "Entertainment", "Transfers", "Bank charges", "Income", "Other"];
 const RECATEGORIZED_KEY = "expense-overview-recategorized-v1";
 const DESCRIPTIONS_CLEANED_KEY = "expense-overview-descriptions-v2";
 const UPDATE_CHECK_KEY = "expense-overview-update-check";
+const SEEN_CREDITS_KEY = "expense-overview-seen-credits";
+const LAST_SCAN_KEY = "expense-overview-last-scan";
 const LATEST_RELEASE_URL = "https://api.github.com/repos/ShoElj/Finance-tracker/releases/tags/android-latest";
 
 const currency = new Intl.NumberFormat("en-NG", { style: "currency", currency: "NGN" });
@@ -25,6 +27,8 @@ const state = {
   expenses: loadExpenses(),
   pending: loadJson(PENDING_KEY, []),
   seenAlerts: new Set(loadJson(SEEN_ALERTS_KEY, [])),
+  // Credits get their own memory: older versions skipped them, so they must be picked up again.
+  seenCredits: new Set(loadJson(SEEN_CREDITS_KEY, [])),
   settings: { autoAdd: false, setupDismissed: false, ownNames: "", ...loadJson(SETTINGS_KEY, {}) },
   categoryMemory: loadJson(CATEGORY_MEMORY_KEY, {}),
   importStatus: { sms: false, notifications: false },
@@ -102,6 +106,9 @@ const elements = {
   updateStatus: $("#updateStatus"),
   updateButton: $("#updateButton"),
   updateLater: $("#updateLater"),
+  moneyIn: $("#moneyIn"),
+  appVersion: $("#appVersion"),
+  checkUpdateButton: $("#checkUpdateButton"),
 };
 
 const categoryOptions = CATEGORIES.map((category) => `<option value="${category}">${category}</option>`).join("");
@@ -312,12 +319,26 @@ if (native) {
     if (document.visibilityState !== "visible") return;
     syncAlerts();
     refreshImportStatus();
+    rescanRecentSms();
     checkForUpdate();
   });
   syncAlerts();
   refreshImportStatus();
+  rescanRecentSms();
   checkForUpdate();
+  callNative("AppUpdate", "getVersion").then((version) => {
+    if (version) elements.appVersion.textContent = `Version ${version.versionName}`;
+  });
 }
+
+elements.checkUpdateButton.addEventListener("click", async () => {
+  updateDismissed = false;
+  elements.checkUpdateButton.disabled = true;
+  const available = await checkForUpdate({ force: true });
+  elements.checkUpdateButton.disabled = false;
+  if (available) elements.importSheet.close();
+  showToast(available ? "An update is available" : available === false ? "You have the latest version" : "Couldn't check for updates");
+});
 
 /* App updates */
 
@@ -384,6 +405,10 @@ function render() {
   elements.largestExpense.textContent = compactCurrency.format(largest);
   elements.entryCount.textContent = String(counted.length);
   elements.clearMonthButton.disabled = monthly.length === 0;
+
+  const received = sum(moneyIn(monthly));
+  elements.moneyIn.hidden = received === 0;
+  elements.moneyIn.textContent = `Money in: ${currency.format(received)}`;
 
   renderPending();
   renderImportState();
@@ -481,7 +506,7 @@ function renderPending() {
             <span class="txn-title">${escapeHtml(item.description)}</span>
             <span class="txn-meta">${item.ownTransfer ? "Own account · " : ""}${item.bank ? `${escapeHtml(item.bank)} · ` : ""}${when}</span>
           </span>
-          <span class="txn-amount">${currency.format(item.amount)}</span>
+          ${amountHtml(item)}
           <span class="pending-actions">
             <select class="pending-category" data-category-for="${item.id}" aria-label="Category for ${escapeHtml(item.description)}">
               ${categoryOptions.replace(`value="${safe}"`, `value="${safe}" selected`)}
@@ -523,7 +548,7 @@ function renderTransaction(expense) {
           <span class="txn-title">${escapeHtml(expense.description)}</span>
           <span class="txn-meta">${expense.ownTransfer ? "Own account" : escapeHtml(expense.category)}${expense.bank ? ` · ${escapeHtml(expense.bank)}` : ""}</span>
         </span>
-        <span class="txn-amount${expense.ownTransfer ? " is-excluded" : ""}">${currency.format(expense.amount)}</span>
+        ${amountHtml(expense)}
       </button>
     </li>`;
 }
@@ -680,18 +705,18 @@ function topRoundedRect(context, x, y, width, height, radius) {
   context.closePath();
 }
 
-// Asks GitHub for the newest build (at most hourly) and shows the banner if it is newer than this app.
-async function checkForUpdate() {
-  if (!native || updateDismissed) return;
+// Asks GitHub for the newest build (at most every 10 minutes unless forced) and shows the banner if it is newer than this app.
+async function checkForUpdate({ force = false } = {}) {
+  if (!native || updateDismissed) return null;
   try {
     let latest = loadJson(UPDATE_CHECK_KEY, {});
-    if (Date.now() - (latest.checkedAt || 0) > 60 * 60 * 1000) {
+    if (force || Date.now() - (latest.checkedAt || 0) > 10 * 60 * 1000) {
       const response = await fetch(LATEST_RELEASE_URL, { headers: { Accept: "application/vnd.github+json" } });
-      if (!response.ok) return;
+      if (!response.ok) return null;
       const release = await response.json();
       const versionCode = Number(release.body?.match(/\bBuild (\d+)/)?.[1]);
       const asset = release.assets?.find((file) => file.name.endsWith(".apk"));
-      if (!versionCode || !asset) return;
+      if (!versionCode || !asset) return null;
       latest = { checkedAt: Date.now(), versionCode, url: asset.browser_download_url };
       saveJson(UPDATE_CHECK_KEY, latest);
     }
@@ -699,8 +724,10 @@ async function checkForUpdate() {
     const current = await native.nativePromise("AppUpdate", "getVersion");
     const available = latest.versionCode > Number(current.versionCode);
     elements.updateBanner.hidden = !available;
+    return available;
   } catch (error) {
     console.warn("Update check failed", error);
+    return null;
   }
 }
 
@@ -714,6 +741,28 @@ async function callBankAlerts(method, options = {}) {
     console.warn(`BankAlerts.${method} failed`, error);
     return null;
   }
+}
+
+async function callNative(plugin, method, options = {}) {
+  if (!native) return null;
+  try {
+    return await native.nativePromise(plugin, method, options);
+  } catch (error) {
+    console.warn(`${plugin}.${method} failed`, error);
+    return null;
+  }
+}
+
+// Re-reads recent SMS each time the app opens, so nothing is missed even if an alert slipped past
+// the background capture. The first run after this update looks back 30 days to pick up credits.
+async function rescanRecentSms() {
+  const last = Number(localStorage.getItem(LAST_SCAN_KEY) || 0);
+  if (Date.now() - last < 2 * 60 * 1000) return;
+  const status = await callBankAlerts("getStatus");
+  if (!status?.sms) return;
+  localStorage.setItem(LAST_SCAN_KEY, String(Date.now()));
+  const result = await callBankAlerts("readInbox", { days: last ? 3 : 30 });
+  if (result?.alerts?.length) ingestAlerts(result.alerts);
 }
 
 async function refreshImportStatus() {
@@ -732,7 +781,7 @@ async function scanInbox() {
   elements.scanButton.disabled = true;
   elements.scanButton.textContent = "Scanning…";
   const result = await callBankAlerts("readInbox", { days: 30 });
-  elements.scanButton.textContent = "Scan SMS from the last 30 days";
+  elements.scanButton.textContent = "Check SMS now (last 30 days)";
   renderImportState();
   if (result) ingestAlerts(result.alerts, { announceEmpty: true });
 }
@@ -749,17 +798,18 @@ function ingestAlerts(alerts, { announceEmpty = false } = {}) {
   let queued = 0;
 
   for (const alert of alerts) {
-    if (!alert?.id || state.seenAlerts.has(alert.id)) continue;
-    state.seenAlerts.add(alert.id);
-
+    if (!alert?.id) continue;
     const parsed = BankAlertParser.parseAlert(alert);
-    if (!parsed || parsed.direction !== "debit" || isDuplicateAlert(parsed, alert.source)) continue;
+    const seen = parsed?.direction === "credit" ? state.seenCredits : state.seenAlerts;
+    if (seen.has(alert.id)) continue;
+    seen.add(alert.id);
+    if (!parsed || isDuplicateAlert(parsed, alert.source)) continue;
 
     const candidate = {
       id: createId(),
       amount: parsed.amount,
       description: parsed.description,
-      category: rememberedCategory(parsed.description) || parsed.category,
+      category: parsed.direction === "credit" ? "Income" : rememberedCategory(parsed.description) || parsed.category,
       date: toDateValue(new Date(parsed.timestamp)),
       bank: parsed.bank,
       source: alert.source,
@@ -778,22 +828,24 @@ function ingestAlerts(alerts, { announceEmpty = false } = {}) {
 
   state.pending.sort((a, b) => b.alertAt - a.alertAt);
   saveJson(SEEN_ALERTS_KEY, [...state.seenAlerts].slice(-3000));
+  saveJson(SEEN_CREDITS_KEY, [...state.seenCredits].slice(-3000));
   saveJson(PENDING_KEY, state.pending);
   saveExpenses();
   render();
 
-  if (added) showToast(`${added} bank ${added === 1 ? "expense" : "expenses"} added`);
+  if (added) showToast(`${added} bank ${added === 1 ? "transaction" : "transactions"} added`);
   else if (queued) showToast(`${queued} new from your banks to review`);
-  else if (announceEmpty) showToast("No new bank debits found");
+  else if (announceEmpty) showToast("No new bank transactions found");
 }
 
-// A bank's SMS and its app notification describe the same debit; keep only the first one seen.
+// A bank's SMS and its app notification describe the same transaction, and a rescan can meet one
+// already recorded; keep only the first one seen.
 function isDuplicateAlert(parsed, source) {
   const fifteenMinutes = 15 * 60 * 1000;
   return [...state.pending, ...state.expenses].some(
     (item) =>
       item.alertAt &&
-      item.source !== source &&
+      (item.source !== source || item.alertAt === parsed.timestamp) &&
       item.bank === parsed.bank &&
       item.amount === parsed.amount &&
       Math.abs(item.alertAt - parsed.timestamp) < fifteenMinutes,
@@ -813,7 +865,7 @@ function resolvePending(ids, add) {
   saveJson(PENDING_KEY, state.pending);
   saveExpenses();
   render();
-  if (add) showToast(items.length === 1 ? "Expense added" : `${items.length} expenses added`);
+  if (add) showToast(items.length === 1 ? "Added" : `${items.length} transactions added`);
 }
 
 function toExpense(candidate) {
@@ -846,13 +898,23 @@ function rememberedCategory(description) {
 
 /* Categories & own transfers */
 
+function amountHtml(item) {
+  const income = item.category === "Income";
+  const classes = ["txn-amount", item.ownTransfer ? "is-excluded" : "", income && !item.ownTransfer ? "is-income" : ""].join(" ").trim();
+  return `<span class="${classes}">${income ? "+" : ""}${currency.format(item.amount)}</span>`;
+}
+
 function catKey(category) {
   return category.replace(/\s+/g, "-");
 }
 
 // Money moved between your own accounts is listed but not counted as spending.
 function spending(expenses) {
-  return expenses.filter((expense) => !expense.ownTransfer);
+  return expenses.filter((expense) => !expense.ownTransfer && expense.category !== "Income");
+}
+
+function moneyIn(expenses) {
+  return expenses.filter((expense) => !expense.ownTransfer && expense.category === "Income");
 }
 
 function isToOwnName(description) {
