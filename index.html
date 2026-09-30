@@ -86,7 +86,7 @@
       <section class="hero" aria-labelledby="heroLabel">
         <p id="heroLabel" class="hero-label">Total spent</p>
         <p id="totalSpent" class="hero-amount">₦0.00</p>
-        <p id="moneyIn" class="hero-in" hidden></p>
+        <button id="moneyIn" class="hero-in" type="button" hidden></button>
         <p id="monthDelta" class="hero-delta"></p>
       </section>
 
@@ -148,9 +148,15 @@
         <ul id="categoryList" class="category-list"></ul>
       </section>
 
-      <section class="card" aria-labelledby="listTitle">
+      <section id="listCard" class="card list-card" aria-labelledby="listTitle">
         <div class="card-head">
-          <h2 id="listTitle">Transactions</h2>
+          <div class="list-title">
+            <h2 id="listTitle">Transactions</h2>
+            <button id="filterChip" class="filter-chip" type="button" aria-label="Show all transactions" hidden>
+              <span></span>
+              <svg aria-hidden="true"><use href="#i-close" /></svg>
+            </button>
+          </div>
           <button id="clearMonthButton" class="text-button danger" type="button">Clear month</button>
         </div>
         <div id="expenseGroups" class="groups"></div>
@@ -215,7 +221,7 @@
             <svg><use href="#i-trash" /></svg>
             Delete
           </button>
-          <button id="saveButton" class="button primary" type="submit">Save expense</button>
+          <button id="saveButton" class="button primary" type="submit">Save</button>
         </div>
       </form>
     </dialog>

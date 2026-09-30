@@ -328,7 +328,16 @@ h1 {
 }
 
 .hero-in {
+  display: block;
+  min-height: 32px;
   margin-top: 4px;
+  padding: 0;
+  border: 0;
+  background: none;
+  text-align: left;
+  text-decoration: underline;
+  text-decoration-color: rgba(255, 255, 255, 0.35);
+  text-underline-offset: 4px;
   color: rgba(255, 255, 255, 0.85);
   font-size: 15px;
   font-weight: 600;
@@ -454,13 +463,22 @@ h2 {
 
 .category-list {
   display: grid;
-  gap: 14px;
+  gap: 4px;
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
 .category-row {
+  width: 100%;
+  margin: 0 -8px;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  text-align: left;
+  box-sizing: content-box;
+  transition: background-color 150ms var(--ease);
   display: grid;
   grid-template-columns: 40px 1fr auto;
   align-items: center;
@@ -476,6 +494,11 @@ h2 {
   border-radius: 12px;
   background: color-mix(in srgb, var(--cat) 16%, transparent);
   color: var(--cat);
+}
+
+.category-row:active,
+.category-row.is-selected {
+  background: var(--surface-2);
 }
 
 .category-row .category-icon {
@@ -529,6 +552,36 @@ h2 {
 }
 
 /* Transactions */
+
+.list-card {
+  scroll-margin-top: calc(84px + var(--safe-top));
+}
+
+.list-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 36px;
+  padding: 0 10px 0 14px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--brand-soft);
+  color: var(--brand-strong);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.filter-chip svg {
+  width: 16px;
+  height: 16px;
+}
 
 .groups {
   display: grid;

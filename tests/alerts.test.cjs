@@ -145,3 +145,14 @@ test("credits become Income with the sender as description", () => {
   assert.equal(gtb.description, "From Jane Doe (Opay)");
   assert.equal(parseAlert({ body: REAL_CREDIT }).category, "Income");
 });
+
+test("tidies incoming app-transfer narrations", () => {
+  const body = "Acct:******0000\nAmt:NGN30,000.00 CR\nDesc:-LEMFI TRANSFER-LEMMY MFB-JANE ADA DOE\nBal:NGN40,000.10\nDate:2026-09-30 1:10PM";
+  assert.equal(parseAlert({ sender: "GTBank", body }).description, "From Jane Ada Doe (Lemfi)");
+  const { cleanDescription } = require("../alerts.js");
+  assert.equal(cleanDescription("-Lemfi Transfer-Lemmy Mfb-Jane Ada Doe", "credit"), "From Jane Ada Doe (Lemfi)");
+  assert.equal(cleanDescription("000123456-Stamp Duty Charge"), "Stamp Duty Charge");
+  // Debits keep their narration; only leading junk is removed.
+  assert.equal(cleanDescription("-POS Transfer- Olas"), "POS Transfer- Olas");
+  assert.equal(cleanDescription("MTN Airtime 08031234567"), "MTN Airtime 08031234567");
+});

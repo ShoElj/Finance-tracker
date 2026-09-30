@@ -102,7 +102,7 @@
 
   function findDescription(text, title, direction) {
     const field = text.match(DESCRIPTION_FIELD);
-    if (field) return tidy(field[1]);
+    if (field) return tidy(field[1], direction);
     const sender = direction === "credit" && text.match(SENDER);
     if (sender && !/^(?:NGN|N\d|₦|your|you)/i.test(sender[1])) return tidy(sender[0]);
     const counterparty = text.match(COUNTERPARTY);
@@ -111,8 +111,9 @@
     return "";
   }
 
-  function tidy(value) {
-    let text = value.replace(/\s+/g, " ").replace(/[\s.,;:\-]+$/, "").trim();
+  function tidy(value, direction = "debit") {
+    // Drop a leading reference number or stray dash, e.g. "-Lemfi Transfer-…" or "000123-Lemfi Transfer-…".
+    let text = value.replace(/\s+/g, " ").replace(/^\s*\d*\s*[-–:.,;]+\s*/, "").replace(/[\s.,;:\-]+$/, "").trim();
     // Bank narrations are often in CAPS; title-case those words so the list is easier to read.
     text = text.replace(/\b[A-Z][A-Z']+\b/g, (word) => word[0] + word.slice(1).toLowerCase());
     text = text.replace(/\b(Pos|Nip|Trf|Atm|Ussd|Web|Mtn|Dstv|Gotv|Kfc|Uba|Gtb|Fbn)\b/g, (word) => word.toUpperCase());
@@ -122,6 +123,9 @@
     if (outward) text = `To ${outward[2].trim()} (${outward[1].trim()})`;
     const inward = text.match(/^(?:inward |nip |inter-?bank )?(?:transfer|trf) from ([^-–]{2,25}?)\s*[-–]\s*(.+)$/i);
     if (inward) text = `From ${inward[2].trim()} (${inward[1].trim()})`;
+    // Incoming "Lemfi Transfer-Lemmy Mfb-Jane Doe" → "From Jane Doe (Lemfi)".
+    const service = direction === "credit" && text.match(/^([A-Za-z][A-Za-z0-9 ]{1,20}?) (?:transfer|trf)\s*[-–]\s*([^-–]{2,25}?)\s*[-–]\s*(.+)$/i);
+    if (service) text = `From ${service[3].trim()} (${service[1].trim()})`;
     return text.length > 60 ? `${text.slice(0, 57).trimEnd()}…` : text;
   }
 

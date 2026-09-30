@@ -6,7 +6,7 @@ const CATEGORY_MEMORY_KEY = "expense-overview-category-memory";
 const DEMO_REMOVED_KEY = "expense-overview-demo-removed";
 const CATEGORIES = ["Food", "Rent", "Transport", "Utilities", "Health", "Shopping", "Entertainment", "Transfers", "Bank charges", "Income", "Other"];
 const RECATEGORIZED_KEY = "expense-overview-recategorized-v1";
-const DESCRIPTIONS_CLEANED_KEY = "expense-overview-descriptions-v2";
+const DESCRIPTIONS_CLEANED_KEY = "expense-overview-descriptions-v3";
 const UPDATE_CHECK_KEY = "expense-overview-update-check";
 const SEEN_CREDITS_KEY = "expense-overview-seen-credits";
 const LAST_SCAN_KEY = "expense-overview-last-scan";
@@ -35,6 +35,7 @@ const state = {
   draft: null,
   month: toMonthValue(new Date()),
   editingId: null,
+  categoryFilter: null,
   selectedDay: null,
   lastDeleted: null,
 };
@@ -109,6 +110,8 @@ const elements = {
   moneyIn: $("#moneyIn"),
   appVersion: $("#appVersion"),
   checkUpdateButton: $("#checkUpdateButton"),
+  filterChip: $("#filterChip"),
+  listCard: $("#listCard"),
 };
 
 const categoryOptions = CATEGORIES.map((category) => `<option value="${category}">${category}</option>`).join("");
@@ -122,6 +125,7 @@ elements.categoryChips.innerHTML = CATEGORIES.map(
 ).join("");
 
 elements.monthInput.value = state.month;
+elements.categoryChips.addEventListener("change", updateSheetTitle);
 
 elements.monthInput.addEventListener("change", (event) => {
   if (event.target.value) setMonth(event.target.value);
@@ -167,7 +171,7 @@ elements.form.addEventListener("submit", (event) => {
   elements.sheet.close();
   if (!fields.date.startsWith(state.month)) setMonth(fields.date.slice(0, 7));
   else render();
-  showToast(existing ? "Expense updated" : "Expense added");
+  showToast(`${fields.category === "Income" ? "Income" : "Expense"} ${existing ? "updated" : "added"}`);
 });
 
 elements.deleteButton.addEventListener("click", () => {
@@ -217,6 +221,21 @@ elements.chartWrap.addEventListener("pointermove", (event) => {
 elements.chartWrap.addEventListener("pointerleave", (event) => {
   if (event.pointerType === "mouse") selectDay(null);
 });
+
+/* Category filter */
+
+elements.categoryList.addEventListener("click", (event) => {
+  const row = event.target.closest("[data-filter]");
+  if (row) setCategoryFilter(row.dataset.filter === state.categoryFilter ? null : row.dataset.filter);
+});
+elements.moneyIn.addEventListener("click", () => setCategoryFilter("Income"));
+elements.filterChip.addEventListener("click", () => setCategoryFilter(null));
+
+function setCategoryFilter(category) {
+  state.categoryFilter = category;
+  render();
+  if (category) elements.listCard.scrollIntoView({ behavior: "smooth", block: "start" });
+}
 
 /* Bank import */
 
@@ -414,7 +433,12 @@ function render() {
   renderImportState();
   renderDelta(total);
   renderCategories(counted, total);
-  renderGroups(monthly);
+  const filter = state.categoryFilter;
+  const listed = filter ? monthly.filter((expense) => expense.category === filter) : monthly;
+  elements.filterChip.hidden = !filter;
+  elements.filterChip.querySelector("span").textContent = filter || "";
+  elements.emptyState.querySelector("strong").textContent = filter ? `No ${filter} this month` : "No expenses this month";
+  renderGroups(listed);
   renderChart();
 }
 
@@ -455,7 +479,7 @@ function renderCategories(expenses, total) {
       const safe = CATEGORIES.includes(category) ? category : "Other";
       const share = Math.round((amount / total) * 100);
       return `
-        <li class="category-row" style="--cat: var(--cat-${catKey(safe)})">
+        <li><button class="category-row${state.categoryFilter === category ? " is-selected" : ""}" type="button" data-filter="${escapeHtml(category)}" style="--cat: var(--cat-${catKey(safe)})" aria-label="Show ${escapeHtml(category)} transactions">
           <span class="category-icon"><svg aria-hidden="true"><use href="#i-${catKey(safe)}" /></svg></span>
           <span class="category-name">${escapeHtml(category)}</span>
           <span class="category-amount">${currency.format(amount)}</span>
@@ -463,7 +487,7 @@ function renderCategories(expenses, total) {
             <span class="meter" aria-hidden="true"><span style="width:${(amount / max) * 100}%"></span></span>
             <span class="category-share">${share}%</span>
           </span>
-        </li>`;
+        </button></li>`;
     })
     .join("");
 }
@@ -948,11 +972,12 @@ function recategorizeImported() {
   localStorage.setItem(RECATEGORIZED_KEY, "1");
 }
 
-// Rewrites descriptions imported before the recipient-first format (e.g. GTBank outward transfers).
+// Rewrites imported descriptions to the current tidy format (recipient or sender first, no stray dashes).
 function cleanImportedDescriptions() {
   if (localStorage.getItem(DESCRIPTIONS_CLEANED_KEY)) return;
   for (const item of [...state.expenses, ...state.pending]) {
-    if (item.source) item.description = BankAlertParser.cleanDescription(item.description);
+    if (!item.source) continue;
+    item.description = BankAlertParser.cleanDescription(item.description, item.category === "Income" ? "credit" : "debit");
   }
   saveExpenses();
   saveJson(PENDING_KEY, state.pending);
@@ -968,8 +993,7 @@ function escapeRegExp(value) {
 function openSheet(expense, draft = null) {
   state.draft = expense ? null : draft;
   state.editingId = expense?.id ?? null;
-  elements.sheetTitle.textContent = expense ? "Edit expense" : "Add expense";
-  elements.saveButton.textContent = expense ? "Save changes" : "Save expense";
+  elements.saveButton.textContent = expense ? "Save changes" : "Save";
   elements.deleteButton.hidden = !expense;
 
   const values = expense ?? draft;
@@ -978,11 +1002,17 @@ function openSheet(expense, draft = null) {
   elements.form.elements.category.value = values?.category ?? "Food";
   elements.dateInput.value = values?.date ?? defaultDateForMonth();
   elements.ownTransferInput.checked = Boolean(values?.ownTransfer);
+  updateSheetTitle();
   setFieldError(elements.amountInput, elements.amountError, false);
   setFieldError(elements.descriptionInput, elements.descriptionError, false);
 
   elements.sheet.showModal();
   if (!expense) elements.amountInput.focus();
+}
+
+function updateSheetTitle() {
+  const kind = elements.form.elements.category.value === "Income" ? "income" : "expense";
+  elements.sheetTitle.textContent = `${state.editingId ? "Edit" : "Add"} ${kind}`;
 }
 
 function setFieldError(input, message, invalid) {
