@@ -6,11 +6,12 @@ in the canteen, dodge the prefects, and get back to class before the final bell.
 
 Version 1 contains one mode, **Canteen Rush**. No free chat — only preset reactions.
 
-## School Life (shared school world)
+## Student Life (shared school world)
 
-A second mode at `/life`. A teacher creates a class and gets a 6-character code; each student
-joins with the code, a display name and a 4-digit PIN (no email or personal data). Everyone in
-the class lives in the same school at the same time and can see each other.
+A second mode at `/life`, run entirely by students. Anyone can **start a school** (give it a
+name, then pick their own name and 4-digit PIN) and gets a 6-character school code to share;
+friends **join a school** with that code, a name and a PIN (no email or personal data).
+Everyone in the school lives in the same world at the same time and can see each other.
 
 - **School day:** 10 real minutes, the same for everyone because it is derived from the clock:
   Morning Assembly → Lesson 1 → Break → Lesson 2 → After School → Home Time (report card).
@@ -23,7 +24,7 @@ the class lives in the same school at the same time and can see each other.
 - **Friendships:** preset greetings (no free chat), helping with homework in the library,
   sharing snacks and playing football together build friendship levels.
 
-Online, accounts and saves live in Supabase (`supabase/migrations/002_school_life.sql`): PINs
+Online, accounts and saves live in Supabase (`supabase/migrations/002_school_life.sql` and `003_student_life.sql`): PINs
 are bcrypt-hashed in the database, 5 wrong PINs lock the name for 5 minutes, and the tables are
 only reachable through functions that check a per-student session token. Positions and social
 actions use Realtime broadcast on `life:{classCode}`. In demo mode the same rules run on
@@ -54,7 +55,7 @@ npm run test       # Vitest: rules, scoring, collision, bots
 ## Online multiplayer (Supabase)
 
 1. Create a Supabase project.
-2. Run `supabase/migrations/001_initial_schema.sql` and `002_school_life.sql` in the SQL editor.
+2. Run the files in `supabase/migrations/` (001, 002, 003) in order in the SQL editor.
 3. Copy `.env.example` to `.env.local` and fill in:
 
    ```
@@ -151,5 +152,5 @@ Every effect has a built-in fallback tone, so no audio files are required. See
 
 ## Not in V1
 
-Free chat, voice/video, accounts, teacher dashboard, more maps and the other planned modes
+Free chat, voice/video, more maps and the other planned modes
 (Dodge the Prefect, Beat the Bell, Snack War, Lost Notebook Mission, Classroom Escape).

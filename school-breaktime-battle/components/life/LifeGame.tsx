@@ -219,7 +219,7 @@ function GoalsSheet({ hud }: { hud: LifeHud }) {
 function PeopleSheet({ onTalk }: { onTalk: (id: string) => void }) {
   const roster = useLifeStore((s) => s.roster);
   if (roster.length === 0) {
-    return <p className="text-base text-ink/70">No classmates yet. Share your class code so friends can join!</p>;
+    return <p className="text-base text-ink/70">No classmates yet. Share your school code so friends can join!</p>;
   }
   return (
     <ul className="flex flex-col gap-2">
@@ -326,7 +326,7 @@ function MenuSheet({ onClose }: { onClose: () => void }) {
     <div className="flex flex-col gap-2">
       {me && (
         <div className="rounded-2xl bg-sky p-3">
-          <p className="text-sm font-bold text-ink/60">{me.className} · class code</p>
+          <p className="text-sm font-bold text-ink/60">{me.className} · school code</p>
           <div className="flex items-center gap-2">
             <p className="text-2xl font-black tracking-widest text-brand">{me.classCode}</p>
             <button

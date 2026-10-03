@@ -58,7 +58,7 @@ function CreateRoomForm() {
       <form onSubmit={onSubmit} className="mt-6 flex flex-col gap-5" noValidate>
         <Input
           label="Host name"
-          placeholder="e.g. Mr. Okafor"
+          placeholder="e.g. Amaka"
           value={hostName}
           onChange={(e) => setHostName(e.target.value)}
           maxLength={16}

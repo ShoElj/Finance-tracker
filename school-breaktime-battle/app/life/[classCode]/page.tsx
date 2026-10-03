@@ -38,7 +38,7 @@ export default function LifeWorldPage() {
   if (error) {
     return (
       <PageShell>
-        <RoomEndedCard message={error} retryHref="/life" retryLabel="Back to School Life" />
+        <RoomEndedCard message={error} retryHref="/life" retryLabel="Back to Student Life" />
       </PageShell>
     );
   }

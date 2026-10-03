@@ -1,5 +1,5 @@
 /**
- * Phaser scene for the School Life world: draws the school, the student and their classmates
+ * Phaser scene for the Student Life world: draws the school, the student and their classmates
  * (each in their own outfit), activity spots and speech bubbles. Game rules live in LifeClient.
  */
 import type PhaserType from "phaser";

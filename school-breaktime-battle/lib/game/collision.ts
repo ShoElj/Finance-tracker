@@ -61,7 +61,7 @@ export function isWalkable(
 
 export type MoveResult = { x: number; y: number; moved: boolean; hitObstacle: Obstacle | null };
 
-/** A walkable layout: the Canteen Rush school by default, or another map such as School Life. */
+/** A walkable layout: the Canteen Rush school by default, or another map such as Student Life. */
 export type MapGeometry = { zones: Zone<string>[]; solids: Obstacle[]; world: { width: number; height: number } };
 
 const defaultGeometry: MapGeometry = { zones: walkableZones, solids: solidObstacles, world: WORLD };

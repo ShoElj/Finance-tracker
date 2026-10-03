@@ -53,14 +53,14 @@ export default function LandingPage() {
           <div>
             <span className="rounded-full bg-leaf px-3 py-1 text-xs font-extrabold tracking-wide text-white uppercase">New</span>
             <h2 id="school-life" className="mt-2 text-2xl font-black text-brand">
-              School Life
+              Student Life
             </h2>
             <p className="text-base text-ink/75">
-              Live a whole school day with your class: lessons, canteen, football, friendships, outfits and a report card.
+              Start a school with your friends and live the student life: lessons, canteen, football, friendships, outfits and a report card.
             </p>
           </div>
           <Link href="/life" className={`${linkButton} shrink-0 bg-leaf text-white shadow-[0_4px_0_0_var(--color-leaf-dark)]`}>
-            Go to School Life
+            Go to Student Life
           </Link>
         </Card>
       </section>

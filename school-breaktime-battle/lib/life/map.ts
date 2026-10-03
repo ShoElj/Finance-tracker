@@ -59,7 +59,7 @@ const solid = (id: string, label: string, x: number, y: number, width: number, h
   emoji,
 });
 
-/** Furniture. Solid, but bumping it is harmless in School Life. */
+/** Furniture. Solid, but bumping it is harmless in Student Life. */
 export const lifeFurniture: Obstacle[] = [
   solid("shelf_top", "Bookshelf", 50, 48, 190, 18, "#8b5a2b", "📚"),
   solid("study_table", "Study table", 120, 120, 100, 40, "#a16207"),
@@ -74,7 +74,6 @@ export const lifeFurniture: Obstacle[] = [
   solid("desk_4", "Desk", 80, 665, 44, 24, "#b45309"),
   solid("desk_5", "Desk", 160, 665, 44, 24, "#b45309"),
   solid("desk_6", "Desk", 240, 665, 44, 24, "#b45309"),
-  solid("teacher_desk", "Teacher's desk", 300, 500, 70, 28, "#78350f"),
   solid("sofa", "Sofa", 460, 715, 130, 30, "#7c3aed", "🛋️"),
   solid("ludo_table", "Games table", 600, 550, 60, 40, "#0f766e", "🎲"),
 ];

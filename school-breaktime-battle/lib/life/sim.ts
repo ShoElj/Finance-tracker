@@ -1,5 +1,5 @@
 /**
- * School Life rules for one student: needs that drop over time, timed activities, daily goals,
+ * Student Life rules for one student: needs that drop over time, timed activities, daily goals,
  * coins, and the report card at home time. Pure and deterministic for a given `now`.
  */
 import { moveWithCollision } from "@/lib/game/collision";

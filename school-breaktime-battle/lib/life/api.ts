@@ -1,5 +1,5 @@
 /**
- * School Life accounts and saves. Online it calls the Supabase functions in
+ * Student Life accounts and saves. Online it calls the Supabase functions in
  * supabase/migrations/002_school_life.sql; in demo mode the same rules run against
  * localStorage so the game can be tried (and played across tabs) without a backend.
  */
@@ -9,7 +9,7 @@ import { getSupabase } from "@/lib/supabase/client";
 import { generateId } from "@/lib/utils";
 import type { LifeProfile } from "./types";
 
-export type ClassInfo = { name: string; teacherName: string; studentCount: number };
+export type ClassInfo = { name: string; studentCount: number };
 
 export type EnterResult = {
   studentId: string;
@@ -28,12 +28,12 @@ export type Roster = {
 export class LifeApiError extends Error {}
 
 const ERROR_MESSAGES: Record<string, string> = {
-  class_not_found: "We couldn't find that class code.",
+  class_not_found: "We couldn't find a school with that code.",
   invalid_name: "Names can use letters, numbers and spaces (2–16 characters).",
   invalid_pin: "Your PIN must be 4 numbers.",
   wrong_pin: "That PIN doesn't match. Try again.",
   locked: "Too many wrong PINs. Wait 5 minutes and try again.",
-  class_full: "This class is full.",
+  class_full: "This school is full.",
   signed_out: "You signed in somewhere else. Please sign in again.",
 };
 
@@ -43,7 +43,8 @@ function fail(code: string): never {
 
 export interface LifeApi {
   readonly mode: RoomMode;
-  createClass(name: string, teacher: string): Promise<string>;
+  /** Starts a new school and returns its 6-character code. */
+  createClass(name: string): Promise<string>;
   classInfo(code: string): Promise<ClassInfo | null>;
   enter(code: string, name: string, pin: string): Promise<EnterResult>;
   /** Returns false when the session is no longer valid (signed in elsewhere). */
@@ -70,8 +71,8 @@ class SupabaseLifeApi implements LifeApi {
     return data as T;
   }
 
-  async createClass(name: string, teacher: string): Promise<string> {
-    return this.rpc<string>("life_create_class", { p_name: name, p_teacher: teacher });
+  async createClass(name: string): Promise<string> {
+    return this.rpc<string>("life_create_class", { p_name: name });
   }
 
   async classInfo(code: string): Promise<ClassInfo | null> {
@@ -112,7 +113,7 @@ type LocalStudent = {
   lockedUntil: number;
   profile: LifeProfile | null;
 };
-type LocalClass = { name: string; teacherName: string; students: Record<string, LocalStudent>; friendships: Record<string, number> };
+type LocalClass = { name: string; students: Record<string, LocalStudent>; friendships: Record<string, number> };
 
 const LOCAL_KEY = "sbb-life-classes";
 const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -155,21 +156,21 @@ function findByToken(data: Record<string, LocalClass>, token: string): { cls: Lo
 class LocalLifeApi implements LifeApi {
   readonly mode = "local" as const;
 
-  async createClass(name: string, teacher: string): Promise<string> {
-    if (name.trim().length < 2 || teacher.trim().length < 2) throw new LifeApiError("Please fill in both names.");
+  async createClass(name: string): Promise<string> {
+    if (name.trim().length < 2) throw new LifeApiError("Please give your school a name.");
     const data = readAll();
     let code = "";
     do {
       code = Array.from({ length: 6 }, () => CODE_ALPHABET[Math.floor(Math.random() * CODE_ALPHABET.length)]).join("");
     } while (data[code]);
-    data[code] = { name: name.trim(), teacherName: teacher.trim(), students: {}, friendships: {} };
+    data[code] = { name: name.trim(), students: {}, friendships: {} };
     writeAll(data);
     return code;
   }
 
   async classInfo(code: string): Promise<ClassInfo | null> {
     const cls = readAll()[code.trim().toUpperCase()];
-    return cls ? { name: cls.name, teacherName: cls.teacherName, studentCount: Object.keys(cls.students).length } : null;
+    return cls ? { name: cls.name, studentCount: Object.keys(cls.students).length } : null;
   }
 
   async enter(rawCode: string, rawName: string, pin: string): Promise<EnterResult> {
