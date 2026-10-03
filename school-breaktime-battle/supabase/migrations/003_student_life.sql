@@ -29,7 +29,7 @@ begin
       insert into life_classes (code, name) values (v_code, trim(p_name));
       return v_code;
     exception when unique_violation then
-      -- Code already used: try another.
+      null; -- code already used: loop and try another
     end;
   end loop;
 end;

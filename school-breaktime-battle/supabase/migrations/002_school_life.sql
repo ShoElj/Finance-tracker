@@ -73,7 +73,7 @@ begin
       insert into life_classes (code, name, teacher_name) values (v_code, trim(p_name), trim(p_teacher));
       return v_code;
     exception when unique_violation then
-      -- Code already used: try another.
+      null; -- code already used: loop and try another
     end;
   end loop;
 end;
