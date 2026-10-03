@@ -3,29 +3,52 @@
  * Phaser is imported dynamically on the client, so the scene class is created by a factory.
  */
 import type PhaserType from "phaser";
-import { getCharacter } from "../characters";
+import {
+  ART_SCALE,
+  drawStudent,
+  looks,
+  STUDENT_HEIGHT,
+  STUDENT_WIDTH,
+  studentTextureKey,
+  type LookKey,
+  type StudentFrame,
+  type StudentView,
+} from "../art/students";
 import { getSnackDefinition, powerUps as powerUpDefs, TUNING } from "../constants";
 import { obstacles, returnZone, WORLD, zones } from "../map";
 import type { GameRuntime } from "../runtime";
+import type { Direction } from "../types";
 
 type PhaserModule = typeof PhaserType;
 type Container = PhaserType.GameObjects.Container;
 type Text = PhaserType.GameObjects.Text;
-type Arc = PhaserType.GameObjects.Arc;
 type Graphics = PhaserType.GameObjects.Graphics;
 
 const NAVY = 0x1e3a8a;
 /** Below this scale the map text gets too small to read, so the camera follows the player. */
 const MIN_READABLE_ZOOM = 0.62;
 const MAX_ZOOM = 1.4;
+/** Feet sit just below the player's collision centre, so the body rises above it. */
+const FEET_Y = 13;
+const PLAYER_SCALE = 1.2;
+const PREFECT_SCALE = 1.3;
+const STEP_MS = 140;
+const VIEWS: StudentView[] = ["front", "back", "side"];
+const FRAMES: StudentFrame[] = [0, 1, 2];
 const FONT = '"Nunito", "Trebuchet MS", "Segoe UI", system-ui, sans-serif';
+
+type Image = PhaserType.GameObjects.Image;
+type Ellipse = PhaserType.GameObjects.Ellipse;
+
+/** A drawn person plus what is needed to animate their walk. */
+type Walker = { sprite: Image; lastX: number; lastY: number; walkMs: number };
 
 type PlayerView = {
   root: Container;
-  body: Arc;
-  shield: Arc;
-  frozen: Arc;
-  you: Arc | null;
+  walker: Walker;
+  shield: Ellipse;
+  frozen: Text;
+  isMe: boolean;
   name: Text;
   score: Text;
   bubble: Container;
@@ -41,7 +64,7 @@ export function createSchoolScene(Phaser: PhaserModule, getRuntime: () => GameRu
   return class SchoolScene extends Phaser.Scene {
     private players = new Map<string, PlayerView>();
     private items = new Map<string, Container>();
-    private prefects = new Map<string, Container>();
+    private prefects = new Map<string, { root: Container; walker: Walker }>();
     private floats = new Map<number, Text>();
     private zoom = 1;
     private camCenter: { x: number; y: number } | null = null;
@@ -51,16 +74,17 @@ export function createSchoolScene(Phaser: PhaserModule, getRuntime: () => GameRu
     }
 
     create(): void {
+      this.createStudentTextures();
       this.drawMap();
     }
 
-    update(): void {
+    update(_time: number, delta: number): void {
       const runtime = getRuntime();
       if (!runtime) return;
       runtime.frame(performance.now());
       this.syncItems(runtime);
-      this.syncPrefects(runtime);
-      this.syncPlayers(runtime);
+      this.syncPrefects(runtime, delta);
+      this.syncPlayers(runtime, delta);
       this.syncFloats(runtime);
       this.syncCamera(runtime);
     }
@@ -206,15 +230,49 @@ export function createSchoolScene(Phaser: PhaserModule, getRuntime: () => GameRu
       }
     }
 
-    private syncPrefects(runtime: GameRuntime): void {
+    // -- People ------------------------------------------------------------
+
+    /** Turns the canvas drawings into textures once per scene. */
+    private createStudentTextures(): void {
+      for (const key of Object.keys(looks) as LookKey[]) {
+        for (const view of VIEWS) {
+          for (const frame of FRAMES) {
+            const texture = studentTextureKey(key, view, frame);
+            if (!this.textures.exists(texture)) this.textures.addCanvas(texture, drawStudent(looks[key], view, frame));
+          }
+        }
+      }
+    }
+
+    /** Picks the pose for a person: which way they face and which walking step to show. */
+    private animate(walker: Walker, key: LookKey, x: number, y: number, facing: Direction, deltaMs: number): void {
+      const moving = Math.hypot(x - walker.lastX, y - walker.lastY) > 0.15;
+      walker.lastX = x;
+      walker.lastY = y;
+      walker.walkMs = moving ? walker.walkMs + deltaMs : 0;
+      const frame: StudentFrame = moving ? (Math.floor(walker.walkMs / STEP_MS) % 2 === 0 ? 1 : 2) : 0;
+      const view: StudentView = facing === "up" ? "back" : facing === "down" ? "front" : "side";
+      walker.sprite.setTexture(studentTextureKey(key, view, frame));
+      walker.sprite.setFlipX(facing === "left");
+    }
+
+    private makeWalker(key: LookKey, x: number, y: number, scale = 1): Walker {
+      const sprite = this.add
+        .image(0, FEET_Y, studentTextureKey(key, "front", 0))
+        .setOrigin(0.5, 1)
+        .setScale(scale / ART_SCALE);
+      return { sprite, lastX: x, lastY: y, walkMs: 0 };
+    }
+
+    private syncPrefects(runtime: GameRuntime, deltaMs: number): void {
       for (const pf of runtime.state.prefects) {
         let view = this.prefects.get(pf.id);
+        const d = runtime.prefectDisplay.get(pf.id) ?? pf;
         if (!view) {
-          const body = this.add.circle(0, 0, TUNING.prefectRadius, 0x334155).setStrokeStyle(3, NAVY);
-          const sash = this.add.rectangle(0, 0, 6, TUNING.prefectRadius * 2, 0xfacc15).setRotation(-0.7);
-          const eyes = this.add.text(0, -2, "• •", { fontFamily: FONT, fontSize: "11px", color: "#ffffff" }).setOrigin(0.5);
+          const shadow = this.add.ellipse(0, FEET_Y - 1, 26, 8, 0x000000, 0.2);
+          const walker = this.makeWalker("prefect", d.x, d.y, PREFECT_SCALE);
           const tag = this.add
-            .text(0, -TUNING.prefectRadius - 4, "Prefect", {
+            .text(0, FEET_Y - STUDENT_HEIGHT * PREFECT_SCALE - 2, "Prefect", {
               fontFamily: FONT,
               fontSize: "12px",
               fontStyle: "bold",
@@ -223,28 +281,31 @@ export function createSchoolScene(Phaser: PhaserModule, getRuntime: () => GameRu
               padding: { x: 4, y: 1 },
             })
             .setOrigin(0.5, 1);
-          view = this.add.container(pf.x, pf.y, [body, sash, eyes, tag]).setDepth(3);
+          const root = this.add.container(d.x, d.y, [shadow, walker.sprite, tag]).setDepth(3);
+          view = { root, walker };
           this.prefects.set(pf.id, view);
         }
-        const d = runtime.prefectDisplay.get(pf.id) ?? pf;
-        view.setPosition(d.x, d.y);
+        view.root.setPosition(d.x, d.y);
+        view.root.setDepth(3 + d.y / 10000);
+        this.animate(view.walker, "prefect", d.x, d.y, pf.direction, deltaMs);
       }
     }
 
     private createPlayerView(runtime: GameRuntime, id: string): PlayerView {
       const p = runtime.state.players[id];
-      const character = getCharacter(p.characterKey);
       const isMe = id === runtime.myId;
-      const r = TUNING.playerRadius;
+      const top = FEET_Y - STUDENT_HEIGHT * PLAYER_SCALE;
 
-      const you = isMe ? this.add.circle(0, 4, r + 7, 0xfacc15, 0.55).setStrokeStyle(2, 0xca8a04) : null;
-      const shadow = this.add.ellipse(0, r - 1, r * 2, 8, 0x000000, 0.18);
-      const body = this.add.circle(0, 0, r, hex(character.color)).setStrokeStyle(3, NAVY);
-      const face = this.add.text(0, 0, character.emoji, { fontSize: "13px" }).setOrigin(0.5);
-      const shield = this.add.circle(0, 0, r + 4).setStrokeStyle(3, 0x3b82f6).setVisible(false);
-      const frozen = this.add.circle(0, 0, r + 2, 0x93c5fd, 0.65).setVisible(false);
+      const you = isMe ? this.add.ellipse(0, FEET_Y - 1, 34, 13, 0xfacc15, 0.75).setStrokeStyle(2, 0xca8a04) : null;
+      const shadow = this.add.ellipse(0, FEET_Y - 1, 24, 7, 0x000000, 0.2);
+      const walker = this.makeWalker(p.characterKey, p.x, p.y, PLAYER_SCALE);
+      const shield = this.add
+        .ellipse(0, (top + FEET_Y) / 2, STUDENT_WIDTH * PLAYER_SCALE + 10, STUDENT_HEIGHT * PLAYER_SCALE + 8)
+        .setStrokeStyle(3, 0x3b82f6)
+        .setVisible(false);
+      const frozen = this.add.text(12, top + 2, "❄️", { fontSize: "16px" }).setOrigin(0.5).setVisible(false);
       const name = this.add
-        .text(0, -r - 4, p.name, {
+        .text(0, top - 2, p.name, {
           fontFamily: FONT,
           fontSize: "12px",
           fontStyle: "bold",
@@ -254,7 +315,7 @@ export function createSchoolScene(Phaser: PhaserModule, getRuntime: () => GameRu
         })
         .setOrigin(0.5, 1);
       const score = this.add
-        .text(0, r + 3, "0", {
+        .text(0, FEET_Y + 2, "0", {
           fontFamily: FONT,
           fontSize: "11px",
           fontStyle: "bold",
@@ -267,14 +328,14 @@ export function createSchoolScene(Phaser: PhaserModule, getRuntime: () => GameRu
       const bubbleText = this.add
         .text(0, 0, "", { fontFamily: FONT, fontSize: "12px", fontStyle: "bold", color: "#1f2937" })
         .setOrigin(0.5);
-      const bubble = this.add.container(0, -r - 30, [bubbleBg, bubbleText]).setVisible(false);
+      const bubble = this.add.container(0, top - 28, [bubbleBg, bubbleText]).setVisible(false);
 
-      const parts = [shadow, ...(you ? [you] : []), body, face, shield, frozen, name, score, bubble];
-      const root = this.add.container(p.x, p.y, parts).setDepth(isMe ? 4 : 3);
-      return { root, body, shield, frozen, you, name, score, bubble, bubbleBg, bubbleText, lastScore: -1, lastBubble: "" };
+      const parts = [...(you ? [you] : []), shadow, walker.sprite, shield, frozen, name, score, bubble];
+      const root = this.add.container(p.x, p.y, parts).setDepth(3);
+      return { root, walker, shield, frozen, name, score, bubble, bubbleBg, bubbleText, lastScore: -1, lastBubble: "", isMe };
     }
 
-    private syncPlayers(runtime: GameRuntime): void {
+    private syncPlayers(runtime: GameRuntime, deltaMs: number): void {
       const now = Date.now();
       for (const [id, p] of Object.entries(runtime.state.players)) {
         let view = this.players.get(id);
@@ -284,8 +345,13 @@ export function createSchoolScene(Phaser: PhaserModule, getRuntime: () => GameRu
         }
         const d = runtime.display.get(id) ?? p;
         view.root.setPosition(d.x, d.y);
+        // People lower on screen are drawn in front; the local player wins ties.
+        view.root.setDepth(3 + d.y / 10000 + (view.isMe ? 0.00001 : 0));
+        this.animate(view.walker, p.characterKey, d.x, d.y, p.facing, p.frozenMs > 0 ? 0 : deltaMs);
         view.shield.setVisible(p.hasShield);
         view.frozen.setVisible(p.frozenMs > 0);
+        if (p.frozenMs > 0) view.walker.sprite.setTint(0x9cc9ff);
+        else view.walker.sprite.clearTint();
         view.root.setAlpha(p.immuneMs > 0 && p.frozenMs <= 0 ? 0.6 : 1);
         if (p.score !== view.lastScore) {
           view.lastScore = p.score;

@@ -46,31 +46,64 @@ export function SchoolIllustration() {
       {/* Path */}
       <path d="M126 260 Q220 300 300 262" stroke="#e5d3b3" strokeWidth="26" fill="none" strokeLinecap="round" />
 
-      {/* Students */}
-      <g>
-        <circle cx="200" cy="286" r="16" fill="#ef4444" stroke="#1e3a8a" strokeWidth="3" />
-        <circle cx="195" cy="282" r="2.5" fill="#1e3a8a" />
-        <circle cx="205" cy="282" r="2.5" fill="#1e3a8a" />
-        <path d="M194 291 q6 5 12 0" stroke="#1e3a8a" strokeWidth="2.5" fill="none" strokeLinecap="round" />
-        <path d="M178 290 h-14 M180 298 h-20" stroke="#1e3a8a" strokeWidth="3" strokeLinecap="round" opacity="0.5" />
-      </g>
-      <g>
-        <circle cx="246" cy="300" r="16" fill="#2563eb" stroke="#1e3a8a" strokeWidth="3" />
-        <circle cx="241" cy="296" r="2.5" fill="#fff" />
-        <circle cx="251" cy="296" r="2.5" fill="#fff" />
-        <path d="M240 305 q6 5 12 0" stroke="#fff" strokeWidth="2.5" fill="none" strokeLinecap="round" />
-        <text x="236" y="276" fontSize="16">🍪</text>
-      </g>
+      {/* Students running to the canteen */}
+      <Person x={196} y={262} shirt="#ef4444" bottom="#1e3a8a" skin="#8d5524" stride={1} />
+      <Person x={246} y={274} shirt="#2563eb" bottom="#b08d57" skin="#6b3e1f" stride={-1} puffs />
+      <text x="262" y="268" fontSize="16">🍪</text>
 
-      {/* Prefect */}
-      <g>
-        <circle cx="96" cy="300" r="17" fill="#334155" stroke="#1e3a8a" strokeWidth="3" />
-        <path d="M84 290 L108 312" stroke="#facc15" strokeWidth="6" />
-        <circle cx="91" cy="296" r="2.5" fill="#fff" />
-        <circle cx="101" cy="296" r="2.5" fill="#fff" />
-        <rect x="68" y="320" width="56" height="18" rx="9" fill="#fff" stroke="#1e3a8a" strokeWidth="2.5" />
-        <text x="96" y="333" textAnchor="middle" fontSize="11" fontWeight="800" fill="#1e3a8a">PREFECT</text>
-      </g>
+      {/* Prefect on patrol */}
+      <Person x={96} y={272} shirt="#f8fafc" bottom="#1e3a8a" skin="#5c3317" stride={0} sash trousers />
+      <rect x="68" y="324" width="56" height="18" rx="9" fill="#fff" stroke="#1e3a8a" strokeWidth="2.5" />
+      <text x="96" y="337" textAnchor="middle" fontSize="11" fontWeight="800" fill="#1e3a8a">PREFECT</text>
     </svg>
+  );
+}
+
+/** A small cartoon student in school uniform; (x, y) is the top of the head. */
+function Person({
+  x,
+  y,
+  shirt,
+  bottom,
+  skin,
+  stride,
+  puffs = false,
+  sash = false,
+  trousers = false,
+}: {
+  x: number;
+  y: number;
+  shirt: string;
+  bottom: string;
+  skin: string;
+  stride: number;
+  puffs?: boolean;
+  sash?: boolean;
+  trousers?: boolean;
+}) {
+  const ink = { stroke: "#1e3a8a", strokeWidth: 2.5, strokeLinejoin: "round" as const };
+  const legColor = trousers ? bottom : skin;
+  return (
+    <g transform={`translate(${x} ${y})`}>
+      <ellipse cx="0" cy="52" rx="14" ry="4" fill="#000" opacity="0.15" />
+      <rect x="-7" y="34" width="5" height="16" rx="2" fill={legColor} {...ink} transform={`rotate(${stride * 18} -4.5 34)`} />
+      <rect x="2" y="34" width="5" height="16" rx="2" fill={legColor} {...ink} transform={`rotate(${-stride * 18} 4.5 34)`} />
+      <rect x="-14" y="21" width="5" height="13" rx="2.5" fill={shirt} {...ink} transform={`rotate(${20 + stride * 25} -11.5 21)`} />
+      <rect x="9" y="21" width="5" height="13" rx="2.5" fill={shirt} {...ink} transform={`rotate(${-20 - stride * 25} 11.5 21)`} />
+      <rect x="-9" y="30" width="18" height="8" rx="2" fill={bottom} {...ink} />
+      <rect x="-10" y="19" width="20" height="15" rx="5" fill={shirt} {...ink} />
+      {sash && <path d="M-8 20 L8 33" stroke="#dc2626" strokeWidth="4" />}
+      {puffs && (
+        <>
+          <circle cx="-10" cy="1" r="5" fill="#1c1209" {...ink} />
+          <circle cx="10" cy="1" r="5" fill="#1c1209" {...ink} />
+        </>
+      )}
+      <circle cx="0" cy="9" r="11" fill={skin} {...ink} />
+      <path d="M-11 9 Q-11 -2 0 -2 Q11 -2 11 9 Q8 3 0 3 Q-8 3 -11 9 Z" fill="#1c1209" {...ink} />
+      <circle cx="-4" cy="10" r="1.6" fill="#1e293b" />
+      <circle cx="4" cy="10" r="1.6" fill="#1e293b" />
+      <path d="M-3.5 14 Q0 17 3.5 14" stroke="#1e293b" strokeWidth="1.6" fill="none" strokeLinecap="round" />
+    </g>
   );
 }
