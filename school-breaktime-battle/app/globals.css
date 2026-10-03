@@ -1,0 +1,67 @@
+@import "tailwindcss";
+
+/* Phones held sideways: very little height, so controls float over the game. */
+@custom-variant short (@media (orientation: landscape) and (max-height: 600px));
+
+@theme {
+  --color-brand: #1e3a8a;
+  --color-brand-light: #2747a8;
+  --color-brand-dark: #142a66;
+  --color-sun: #facc15;
+  --color-sun-dark: #c9a00b;
+  --color-leaf: #22c55e;
+  --color-leaf-dark: #15803d;
+  --color-danger: #ef4444;
+  --color-danger-dark: #b91c1c;
+  --color-ink: #1f2937;
+  --color-cream: #fff8e7;
+  --color-sky: #dbeafe;
+  --font-sans: "Nunito", "Trebuchet MS", "Segoe UI", system-ui, -apple-system, sans-serif;
+}
+
+:root {
+  color-scheme: light;
+}
+
+html,
+body {
+  background: var(--color-cream);
+  color: var(--color-ink);
+}
+
+body {
+  font-family: var(--font-sans);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.bg-school {
+  background-color: var(--color-cream);
+  background-image:
+    radial-gradient(circle at 12% 18%, rgba(250, 204, 21, 0.18) 0, transparent 32%),
+    radial-gradient(circle at 88% 8%, rgba(59, 130, 246, 0.14) 0, transparent 30%),
+    radial-gradient(circle at 70% 92%, rgba(34, 197, 94, 0.12) 0, transparent 30%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+@keyframes pop-in {
+  from {
+    transform: scale(0.85);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.animate-pop {
+  animation: pop-in 0.25s ease-out both;
+}
