@@ -48,6 +48,23 @@ export default function LandingPage() {
         </Card>
       </section>
 
+      <section aria-labelledby="school-life" className="mt-2 mb-8">
+        <Card className="flex flex-col gap-4 bg-gradient-to-r from-leaf/10 to-sky sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <span className="rounded-full bg-leaf px-3 py-1 text-xs font-extrabold tracking-wide text-white uppercase">New</span>
+            <h2 id="school-life" className="mt-2 text-2xl font-black text-brand">
+              School Life
+            </h2>
+            <p className="text-base text-ink/75">
+              Live a whole school day with your class: lessons, canteen, football, friendships, outfits and a report card.
+            </p>
+          </div>
+          <Link href="/life" className={`${linkButton} shrink-0 bg-leaf text-white shadow-[0_4px_0_0_var(--color-leaf-dark)]`}>
+            Go to School Life
+          </Link>
+        </Card>
+      </section>
+
       <section aria-labelledby="how-to-play" className="mt-4">
         <h2 id="how-to-play" className="mb-4 text-2xl font-black text-brand">
           How to play

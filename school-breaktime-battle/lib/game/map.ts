@@ -14,8 +14,8 @@ export type ZoneKey =
   | "openLink"
   | "staffLink";
 
-export type Zone = Rect & {
-  key: ZoneKey;
+export type Zone<K extends string = ZoneKey> = Rect & {
+  key: K;
   label: string | null;
   floor: string;
   /** Doorways/links are walkable but not named areas. */

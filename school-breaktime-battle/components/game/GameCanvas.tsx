@@ -22,7 +22,7 @@ function ignoreZeroSizedParent(game: import("phaser").Game): void {
 }
 
 /** Mounts the Phaser game. Phaser is loaded on the client only. */
-export function GameCanvas({ fullBleed = false }: { fullBleed?: boolean }) {
+export function GameCanvas({ fullBleed = false, world = "breaktime" }: { fullBleed?: boolean; world?: "breaktime" | "life" }) {
   const ref = useRef<HTMLDivElement>(null);
   const [failed, setFailed] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -36,9 +36,18 @@ export function GameCanvas({ fullBleed = false }: { fullBleed?: boolean }) {
       try {
         const mod = await import("phaser");
         const Phaser = (mod as unknown as { default?: typeof mod }).default ?? mod;
-        const { createSchoolScene } = await import("@/lib/game/phaser/createSchoolScene");
+        let Scene: typeof Phaser.Scene;
+        if (world === "life") {
+          const [{ createLifeScene }, { getLifeClient }] = await Promise.all([
+            import("@/lib/game/phaser/createLifeScene"),
+            import("@/lib/life/client"),
+          ]);
+          Scene = createLifeScene(Phaser, getLifeClient);
+        } else {
+          const { createSchoolScene } = await import("@/lib/game/phaser/createSchoolScene");
+          Scene = createSchoolScene(Phaser, () => getActiveClient()?.runtime ?? null);
+        }
         if (cancelled || !ref.current) return;
-        const Scene = createSchoolScene(Phaser, () => getActiveClient()?.runtime ?? null);
         game = new Phaser.Game({
           type: Phaser.AUTO,
           parent: ref.current,
@@ -66,7 +75,7 @@ export function GameCanvas({ fullBleed = false }: { fullBleed?: boolean }) {
         game.destroy(true);
       }
     };
-  }, []);
+  }, [world]);
 
   return (
     <div className={cn("relative h-full w-full", fullBleed && "absolute inset-0")}>

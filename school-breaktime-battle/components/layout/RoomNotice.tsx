@@ -10,7 +10,15 @@ const homeLink =
   "inline-flex min-h-12 items-center justify-center rounded-2xl bg-brand px-6 text-base font-bold text-white shadow-[0_4px_0_0_var(--color-brand-dark)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sun/70";
 
 /** Full-page message when the room cannot be shown (closed, removed, failed to reconnect). */
-export function RoomEndedCard({ message }: { message: string }) {
+export function RoomEndedCard({
+  message,
+  retryHref = "/join",
+  retryLabel = "Join another room",
+}: {
+  message: string;
+  retryHref?: string;
+  retryLabel?: string;
+}) {
   return (
     <Card className="animate-pop mx-auto mt-6 max-w-lg text-center">
       <p className="text-5xl" aria-hidden>
@@ -21,8 +29,8 @@ export function RoomEndedCard({ message }: { message: string }) {
         <Link href="/" className={homeLink}>
           Back to Home
         </Link>
-        <Link href="/join" className={`${homeLink} bg-sun text-ink shadow-[0_4px_0_0_var(--color-sun-dark)]`}>
-          Join another room
+        <Link href={retryHref} className={`${homeLink} bg-sun text-ink shadow-[0_4px_0_0_var(--color-sun-dark)]`}>
+          {retryLabel}
         </Link>
       </div>
     </Card>

@@ -3,32 +3,35 @@ import { getSupabase } from "@/lib/supabase/client";
 import type { RoomMode } from "@/lib/session";
 import { isRoomEvent, type AnyRoomEvent } from "./room-events";
 
+/** Any message with the room envelope shape ({ type, roomCode, playerId, payload, timestamp }). */
+type Envelope = { type: string; roomCode: string; playerId: string };
+
 export type TransportStatus = "connecting" | "connected" | "reconnecting";
 
 /** A broadcast channel shared by everyone in one room. */
-export interface RoomTransport {
+export interface RoomTransport<E extends Envelope = AnyRoomEvent> {
   readonly mode: RoomMode;
   connect(): Promise<void>;
-  send(event: AnyRoomEvent): void;
-  subscribe(handler: (event: AnyRoomEvent) => void): () => void;
+  send(event: E): void;
+  subscribe(handler: (event: E) => void): () => void;
   onStatus(handler: (status: TransportStatus) => void): () => void;
   close(): void;
 }
 
-export function channelName(roomCode: string): string {
-  return `room:${roomCode}`;
+export function channelName(roomCode: string, prefix = "room"): string {
+  return `${prefix}:${roomCode}`;
 }
 
-abstract class BaseTransport implements RoomTransport {
+abstract class BaseTransport<E extends Envelope> implements RoomTransport<E> {
   abstract readonly mode: RoomMode;
-  protected handlers = new Set<(event: AnyRoomEvent) => void>();
+  protected handlers = new Set<(event: E) => void>();
   protected statusHandlers = new Set<(status: TransportStatus) => void>();
 
   abstract connect(): Promise<void>;
-  abstract send(event: AnyRoomEvent): void;
+  abstract send(event: E): void;
   abstract close(): void;
 
-  subscribe(handler: (event: AnyRoomEvent) => void): () => void {
+  subscribe(handler: (event: E) => void): () => void {
     this.handlers.add(handler);
     return () => this.handlers.delete(handler);
   }
@@ -40,7 +43,7 @@ abstract class BaseTransport implements RoomTransport {
 
   protected emit(value: unknown): void {
     if (!isRoomEvent(value)) return;
-    for (const h of this.handlers) h(value);
+    for (const h of this.handlers) h(value as unknown as E);
   }
 
   protected setStatus(status: TransportStatus): void {
@@ -52,11 +55,14 @@ abstract class BaseTransport implements RoomTransport {
  * Demo-mode transport: BroadcastChannel delivers messages between tabs of the same browser,
  * so multiplayer can be tested locally without any backend.
  */
-export class LocalTransport extends BaseTransport {
+export class LocalTransport<E extends Envelope = AnyRoomEvent> extends BaseTransport<E> {
   readonly mode = "local" as const;
   private channel: BroadcastChannel | null = null;
 
-  constructor(private roomCode: string) {
+  constructor(
+    private roomCode: string,
+    private prefix = "room",
+  ) {
     super();
   }
 
@@ -66,12 +72,12 @@ export class LocalTransport extends BaseTransport {
       this.setStatus("connected");
       return;
     }
-    this.channel = new BroadcastChannel(`sbb-${channelName(this.roomCode)}`);
+    this.channel = new BroadcastChannel(`sbb-${channelName(this.roomCode, this.prefix)}`);
     this.channel.onmessage = (e) => this.emit(e.data);
     this.setStatus("connected");
   }
 
-  send(event: AnyRoomEvent): void {
+  send(event: E): void {
     this.channel?.postMessage(event);
   }
 
@@ -86,11 +92,14 @@ export class LocalTransport extends BaseTransport {
 const SUPABASE_EVENT = "room_event";
 
 /** Online transport using Supabase Realtime broadcast on the `room:{roomCode}` channel. */
-export class SupabaseTransport extends BaseTransport {
+export class SupabaseTransport<E extends Envelope = AnyRoomEvent> extends BaseTransport<E> {
   readonly mode = "online" as const;
   private channel: RealtimeChannel | null = null;
 
-  constructor(private roomCode: string) {
+  constructor(
+    private roomCode: string,
+    private prefix = "room",
+  ) {
     super();
   }
 
@@ -98,7 +107,7 @@ export class SupabaseTransport extends BaseTransport {
     const supabase = getSupabase();
     if (!supabase) return Promise.reject(new Error("Supabase is not configured."));
     this.setStatus("connecting");
-    const channel = supabase.channel(channelName(this.roomCode), {
+    const channel = supabase.channel(channelName(this.roomCode, this.prefix), {
       config: { broadcast: { self: false, ack: false } },
     });
     this.channel = channel;
@@ -132,7 +141,7 @@ export class SupabaseTransport extends BaseTransport {
     });
   }
 
-  send(event: AnyRoomEvent): void {
+  send(event: E): void {
     void this.channel?.send({ type: "broadcast", event: SUPABASE_EVENT, payload: event });
   }
 
@@ -145,6 +154,10 @@ export class SupabaseTransport extends BaseTransport {
   }
 }
 
-export function createTransport(mode: RoomMode, roomCode: string): RoomTransport {
-  return mode === "online" ? new SupabaseTransport(roomCode) : new LocalTransport(roomCode);
+export function createTransport<E extends Envelope = AnyRoomEvent>(
+  mode: RoomMode,
+  roomCode: string,
+  prefix = "room",
+): RoomTransport<E> {
+  return mode === "online" ? new SupabaseTransport<E>(roomCode, prefix) : new LocalTransport<E>(roomCode, prefix);
 }
