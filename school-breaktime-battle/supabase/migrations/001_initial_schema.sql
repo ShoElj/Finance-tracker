@@ -2,8 +2,6 @@
 -- Realtime gameplay uses Supabase Realtime *broadcast* on channels named `room:{roomCode}`,
 -- which needs no table replication. These tables keep room, player and result records.
 
-create extension if not exists pgcrypto;
-
 create table if not exists rooms (
   id uuid primary key default gen_random_uuid(),
   -- 4-digit code. Not globally unique: the app only reuses a code once the previous room
