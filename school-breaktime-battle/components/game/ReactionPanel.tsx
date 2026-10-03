@@ -3,10 +3,9 @@
 import { useState } from "react";
 import { REACTION_COOLDOWN_MS, REACTIONS, type Reaction } from "@/lib/game/constants";
 import { getActiveClient } from "@/lib/room/room-client";
-import { cn } from "@/lib/utils";
 
 /** Preset safe reactions only — there is no free chat. */
-export function ReactionPanel({ className, compact = false }: { className?: string; compact?: boolean }) {
+export function ReactionPanel({ className }: { className?: string }) {
   const [cooling, setCooling] = useState(false);
 
   function send(reaction: Reaction) {
@@ -19,7 +18,7 @@ export function ReactionPanel({ className, compact = false }: { className?: stri
 
   return (
     <div className={className} role="group" aria-label="Quick reactions">
-      <div className={cn("flex gap-2", compact ? "flex-nowrap overflow-x-auto pb-1" : "flex-wrap justify-center")}>
+      <div className="flex flex-wrap justify-center gap-2">
         {REACTIONS.map((r) => (
           <button
             key={r}

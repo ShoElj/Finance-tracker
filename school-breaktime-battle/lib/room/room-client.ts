@@ -26,7 +26,7 @@ import {
   PLAYER_TIMEOUT_MS,
 } from "@/lib/realtime/sync";
 import { clearSession, loadJson, removeKey, saveJson, saveSession, type RoomMode, type Session } from "@/lib/session";
-import { playSound } from "@/lib/sound";
+import { playSound, vibrate } from "@/lib/sound";
 import { generateId, randomRoomCode } from "@/lib/utils";
 import { useGameStore } from "@/store/gameStore";
 import { getRegistry, type RoomRegistry } from "./registry";
@@ -656,7 +656,10 @@ export class RoomClient {
           feed("The bell has rung.", "info");
           break;
         case "snack_collected":
-          if (mine) playSound("snack-collect");
+          if (mine) {
+            playSound("snack-collect");
+            vibrate(15);
+          }
           if (e.points >= 20) feed(`${name} grabbed ${getSnackDefinition(e.snackType).name} +${e.points}`, "good");
           break;
         case "powerup_collected":
@@ -664,7 +667,10 @@ export class RoomClient {
           feed(`${name} picked up ${powerUpDefs[e.powerUp].name}`, "info");
           break;
         case "player_caught":
-          if (mine) playSound("caught");
+          if (mine) {
+            playSound("caught");
+            vibrate(e.shielded ? 30 : [60, 40, 60]);
+          }
           feed(e.shielded ? `${name}'s shield blocked the prefect!` : `Prefect caught ${name}!${signed(e.penalty)}`, e.shielded ? "info" : "bad");
           break;
         case "returned_to_class":

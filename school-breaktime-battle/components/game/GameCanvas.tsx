@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { bindKeyboard, playerInput } from "@/lib/game/input";
 import { getActiveClient } from "@/lib/room/room-client";
+import { cn } from "@/lib/utils";
 
 type ScaleInternals = { parent: HTMLElement | null; getParentBounds: () => boolean };
 
@@ -21,7 +22,7 @@ function ignoreZeroSizedParent(game: import("phaser").Game): void {
 }
 
 /** Mounts the Phaser game. Phaser is loaded on the client only. */
-export function GameCanvas() {
+export function GameCanvas({ fullBleed = false }: { fullBleed?: boolean }) {
   const ref = useRef<HTMLDivElement>(null);
   const [failed, setFailed] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -68,10 +69,10 @@ export function GameCanvas() {
   }, []);
 
   return (
-    <div className="relative h-full w-full">
+    <div className={cn("relative h-full w-full", fullBleed && "absolute inset-0")}>
       <div
         ref={ref}
-        className="h-full w-full overflow-hidden rounded-2xl"
+        className={cn("h-full w-full overflow-hidden", !fullBleed && "rounded-2xl")}
         role="img"
         aria-label="School map: classroom on the left, corridor in the middle, canteen on the right, water tap below and open space above."
       />

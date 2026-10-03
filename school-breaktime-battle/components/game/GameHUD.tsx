@@ -3,13 +3,13 @@
 import { useEffect, useState } from "react";
 import { powerUps as powerUpDefs } from "@/lib/game/constants";
 import { getActiveClient } from "@/lib/room/room-client";
-import { isMuted, setMuted } from "@/lib/sound";
+import { useMuted } from "@/hooks/useMuted";
 import { cn, formatTime } from "@/lib/utils";
 import { useGameStore } from "@/store/gameStore";
 
 export function GameHUD({ roomCode, isHost }: { roomCode: string; isHost: boolean }) {
   const hud = useGameStore((s) => s.hud);
-  const [muted, setMutedState] = useState(() => isMuted());
+  const [muted, toggleMuted] = useMuted();
   const [confirmEnd, setConfirmEnd] = useState(false);
 
   useEffect(() => {
@@ -65,10 +65,7 @@ export function GameHUD({ roomCode, isHost }: { roomCode: string; isHost: boolea
         <span className="hidden rounded-full bg-brand/10 px-3 py-1 text-sm font-bold text-brand md:inline">Room {roomCode}</span>
         <button
           type="button"
-          onClick={() => {
-            setMuted(!muted);
-            setMutedState(!muted);
-          }}
+          onClick={toggleMuted}
           aria-pressed={muted}
           aria-label={muted ? "Turn sound on" : "Turn sound off"}
           className="grid h-11 w-11 place-items-center rounded-xl bg-white text-xl ring-2 ring-brand/10 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sun"

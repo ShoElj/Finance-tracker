@@ -64,13 +64,13 @@ export default function LobbyPage() {
   }
 
   return (
-    <PageShell wide>
+    <PageShell wide className="pb-28 lg:pb-10">
       <ConnectionBanner connection={connection} notice={notice} />
-      <Card className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <Card className="mb-4 flex flex-col gap-3 sm:mb-5 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p className="text-base font-bold uppercase tracking-wide text-ink/60">Room code</p>
           <div className="flex items-center gap-3">
-            <span className="text-5xl font-black tracking-[0.2em] text-brand" aria-label={`Room code ${roomCode.split("").join(" ")}`}>
+            <span className="text-4xl font-black tracking-[0.2em] text-brand sm:text-5xl" aria-label={`Room code ${roomCode.split("").join(" ")}`}>
               {roomCode}
             </span>
             <button
@@ -86,7 +86,7 @@ export default function LobbyPage() {
           <Badge tone="green" className="w-fit">
             ⏱ {lobby.durationSec} second break
           </Badge>
-          <p className="text-lg font-bold text-ink/80" aria-live="polite">
+          <p className="text-base font-bold text-ink/80 sm:text-lg" aria-live="polite">
             {isHost
               ? "Share the code. Start when everyone is ready."
               : "Waiting for the host to start the breaktime battle."}
@@ -132,6 +132,7 @@ export default function LobbyPage() {
                     </option>
                   ))}
                 </Select>
+<div className="hidden lg:block">
                 <Button
                   size="lg"
                   variant="secondary"
@@ -145,6 +146,7 @@ export default function LobbyPage() {
                 >
                   {starting ? "Starting game…" : "Start Break Time"}
                 </Button>
+                </div>
                 {lobby.players.length < 2 && (
                   <p className="text-sm text-ink/60">You can start alone to test, or wait for classmates to join.</p>
                 )}
@@ -159,11 +161,39 @@ export default function LobbyPage() {
                 </p>
               </div>
             )}
-            <Button variant="ghost" fullWidth onClick={leave}>
-              {isHost ? "Close Room" : "Leave Room"}
-            </Button>
+            <div className="hidden lg:block">
+              <Button variant="ghost" fullWidth onClick={leave}>
+                {isHost ? "Close Room" : "Leave Room"}
+              </Button>
+            </div>
           </Card>
         </div>
+      </div>
+
+      {/* Phones: the main actions stay on screen while scrolling through characters. */}
+      <div className="fixed inset-x-0 bottom-0 z-30 flex gap-2 border-t-2 border-brand/10 bg-white/95 px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur lg:hidden">
+        <Button variant="ghost" onClick={leave} className="shrink-0">
+          {isHost ? "Close" : "Leave"}
+        </Button>
+        {isHost ? (
+          <Button
+            size="lg"
+            variant="secondary"
+            fullWidth
+            loading={starting}
+            onClick={() => {
+              setStarting(true);
+              playSound("button-click");
+              client?.startGame();
+            }}
+          >
+            {starting ? "Starting…" : "Start Break Time"}
+          </Button>
+        ) : (
+          <p className="flex min-h-12 flex-1 items-center justify-center rounded-2xl bg-sky px-3 text-center text-sm font-bold text-ink/80" role="status">
+            {me?.characterKey ? "Ready! Waiting for the host…" : "Pick a character below"}
+          </p>
+        )}
       </div>
     </PageShell>
   );

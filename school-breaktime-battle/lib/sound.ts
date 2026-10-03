@@ -92,3 +92,13 @@ export function playSound(name: SoundName): void {
     playTone(name);
   });
 }
+
+/** Short vibration on phones that support it. Follows the sound mute setting. */
+export function vibrate(pattern: number | number[]): void {
+  if (typeof navigator === "undefined" || muted || !("vibrate" in navigator)) return;
+  try {
+    navigator.vibrate(pattern);
+  } catch {
+    // Not allowed (e.g. before the first tap): ignore.
+  }
+}

@@ -27,6 +27,8 @@ type Graphics = PhaserType.GameObjects.Graphics;
 const NAVY = 0x1e3a8a;
 /** Below this scale the map text gets too small to read, so the camera follows the player. */
 const MIN_READABLE_ZOOM = 0.62;
+/** Phones get a closer camera so students are big enough to follow with a thumb on the screen. */
+const MIN_TOUCH_ZOOM = 0.85;
 const MAX_ZOOM = 1.4;
 /** Feet sit just below the player's collision centre, so the body rises above it. */
 const FEET_Y = 13;
@@ -68,6 +70,7 @@ export function createSchoolScene(Phaser: PhaserModule, getRuntime: () => GameRu
     private floats = new Map<number, Text>();
     private zoom = 1;
     private camCenter: { x: number; y: number } | null = null;
+    private isTouch = typeof window !== "undefined" && window.matchMedia("(pointer: coarse)").matches;
 
     constructor() {
       super("school");
@@ -96,7 +99,11 @@ export function createSchoolScene(Phaser: PhaserModule, getRuntime: () => GameRu
     private syncCamera(runtime: GameRuntime): void {
       const { width, height } = this.scale.gameSize;
       if (!width || !height) return;
-      const zoom = Math.min(MAX_ZOOM, Math.max(Math.min(width / WORLD.width, height / WORLD.height), MIN_READABLE_ZOOM));
+      // Tall phone screens zoom in further so the map isn't a thin strip with grass above and below.
+      const minZoom = this.isTouch
+        ? Math.min(1.15, Math.max(MIN_TOUCH_ZOOM, (height / WORLD.height) * 0.8))
+        : MIN_READABLE_ZOOM;
+      const zoom = Math.min(MAX_ZOOM, Math.max(Math.min(width / WORLD.width, height / WORLD.height), minZoom));
       const viewW = width / zoom;
       const viewH = height / zoom;
       const focus = runtime.display.get(runtime.myId) ?? { x: WORLD.width / 2, y: WORLD.height / 2 };

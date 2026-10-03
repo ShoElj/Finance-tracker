@@ -112,7 +112,7 @@ export abstract class GameRuntime {
           this.float(e.x, e.y, powerUpDefs[e.powerUp].name, "#1d4ed8", now);
           break;
         case "player_caught":
-          this.float(e.x, e.y, e.shielded ? "Shield saved you!" : `Caught!${signed(e.penalty)}`, e.shielded ? "#1d4ed8" : "#dc2626", now);
+          this.float(e.x, e.y, e.shielded ? (e.playerId === this.myId ? "Shield saved you!" : "Shield!") : `Caught!${signed(e.penalty)}`, e.shielded ? "#1d4ed8" : "#dc2626", now);
           break;
         case "obstacle_hit":
           this.float(e.x, e.y, `Ouch!${signed(e.penalty)}`, "#dc2626", now);

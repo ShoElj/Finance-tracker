@@ -6,11 +6,11 @@ import { useGameStore } from "@/store/gameStore";
 
 const medals = ["🥇", "🥈", "🥉"];
 
-export function LeaderboardPanel({ className }: { className?: string }) {
+export function LeaderboardPanel({ className, hideTitle = false }: { className?: string; hideTitle?: boolean }) {
   const rows = useGameStore((s) => s.hud?.leaderboard ?? []);
   return (
     <section className={className} aria-labelledby="live-leaderboard">
-      <h2 id="live-leaderboard" className="mb-2 text-lg font-black text-brand">
+      <h2 id="live-leaderboard" className={cn("mb-2 text-lg font-black text-brand", hideTitle && "sr-only")}>
         Live leaderboard
       </h2>
       <ol className="flex flex-col gap-1.5">
