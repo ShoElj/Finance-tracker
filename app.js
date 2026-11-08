@@ -11,6 +11,7 @@ const UPDATE_CHECK_KEY = "expense-overview-update-check";
 const SEEN_CREDITS_KEY = "expense-overview-seen-credits";
 const LAST_SCAN_KEY = "expense-overview-last-scan";
 const DIRECTIONS_FIXED_KEY = "expense-overview-directions-v1";
+const LAST_VERSION_KEY = "expense-overview-last-version";
 const LATEST_RELEASE_URL = "https://api.github.com/repos/ShoElj/Finance-tracker/releases/tags/android-latest";
 
 const currency = new Intl.NumberFormat("en-NG", { style: "currency", currency: "NGN" });
@@ -44,6 +45,8 @@ const state = {
 let chartLayout = null;
 let toastTimer;
 let updateDismissed = false;
+// Said once at start-up (e.g. what a one-time repair fixed); joined to the "Updated" message.
+let startupNotice = "";
 
 const $ = (selector) => document.querySelector(selector);
 const elements = {
@@ -349,7 +352,9 @@ if (native) {
   rescanRecentSms();
   checkForUpdate();
   callNative("AppUpdate", "getVersion").then((version) => {
-    if (version) elements.appVersion.textContent = `Version ${version.versionName}`;
+    if (!version) return;
+    elements.appVersion.textContent = `Version ${version.versionName}`;
+    announceUpdate(version);
   });
 }
 
@@ -738,6 +743,14 @@ function topRoundedRect(context, x, y, width, height, radius) {
 }
 
 // Asks GitHub for the newest build (at most every 10 minutes unless forced) and shows the banner if it is newer than this app.
+// After the app updates itself it reopens looking the same, so say once that the new version is in.
+function announceUpdate(version) {
+  const previous = Number(localStorage.getItem(LAST_VERSION_KEY) || 0);
+  const current = Number(version.versionCode);
+  localStorage.setItem(LAST_VERSION_KEY, String(current));
+  if (previous && current > previous) showToast([`Updated to version ${version.versionName}`, startupNotice].filter(Boolean).join(" · "));
+}
+
 async function checkForUpdate({ force = false } = {}) {
   if (!native || updateDismissed) return null;
   try {
@@ -907,7 +920,8 @@ function repairDirections() {
   localStorage.setItem(DIRECTIONS_FIXED_KEY, "1");
   if (fixed || removed) {
     const parts = [fixed && `${fixed} money-in ${fixed === 1 ? "entry" : "entries"} fixed`, removed && `${removed} duplicate${removed === 1 ? "" : "s"} removed`];
-    showToast(parts.filter(Boolean).join(", "));
+    startupNotice = parts.filter(Boolean).join(", ");
+    showToast(startupNotice);
   }
 }
 
