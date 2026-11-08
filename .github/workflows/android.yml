@@ -1,0 +1,69 @@
+name: Build Android APK
+
+on:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+      ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+      ANDROID_VERSION_CODE: ${{ github.run_number }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: gradle
+
+      - name: Bundle web app into Android project
+        run: |
+          npm ci
+          npm run android:sync
+
+      - name: Build signed release APK
+        if: env.KEYSTORE_BASE64 != ''
+        working-directory: android
+        run: |
+          echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.jks"
+          ANDROID_KEYSTORE_PATH="$RUNNER_TEMP/release.jks" ./gradlew assembleRelease --no-daemon
+          rm "$RUNNER_TEMP/release.jks"
+          cp app/build/outputs/apk/release/app-release.apk ../expense-overview.apk
+          APKSIGNER="$(ls -d "$ANDROID_HOME"/build-tools/*/ | sort -V | tail -1)apksigner"
+          "$APKSIGNER" verify --print-certs ../expense-overview.apk | grep -i "SHA-256"
+
+      - name: Build debug APK (no signing key configured)
+        if: env.KEYSTORE_BASE64 == ''
+        working-directory: android
+        run: |
+          echo "::warning::ANDROID_KEYSTORE_BASE64 secret is not set; building a debug APK that cannot update an existing install."
+          ./gradlew assembleDebug --no-daemon
+          cp app/build/outputs/apk/debug/app-debug.apk ../expense-overview.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: expense-overview-apk
+          path: expense-overview.apk
+
+      - name: Publish APK to the android-latest release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete android-latest --yes --cleanup-tag || true
+          gh release create android-latest expense-overview.apk \
+            --prerelease \
+            --target "$GITHUB_SHA" \
+            --title "Android APK (latest build)" \
+            --notes "Build ${ANDROID_VERSION_CODE} from ${GITHUB_REF_NAME} @ ${GITHUB_SHA::7}. Download expense-overview.apk on your phone and open it to install."
