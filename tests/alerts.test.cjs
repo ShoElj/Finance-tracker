@@ -167,3 +167,82 @@ test("online services go to Subscriptions", () => {
   assert.equal(card("NETFLIX.COM").category, "Entertainment");
   assert.equal(parseAlert({ sender: "GTBank", body: "Amt: NGN10.75 DR Desc: SMS ALERT CHARGES" }).description, "SMS Alert Charges");
 });
+
+// Banking apps word incoming money in ways that also contain "payment", "paid", "sent" or
+// "transfer successful". Those must still read as money in, not spending.
+test("app notifications for money coming in are credits", () => {
+  const credit = (alert, description) => {
+    const result = parseAlert(alert);
+    assert.ok(result, `expected a transaction from: ${alert.body}`);
+    assert.equal(result.direction, "credit", `direction for: ${alert.title ?? ""} ${alert.body}`);
+    assert.equal(result.category, "Income");
+    if (description) assert.equal(result.description, description);
+  };
+  credit({ app: "OPay", title: "Payment Received", body: "Payment received: ₦5,000.00 from JOHN DOE" }, "From John Doe");
+  credit({ app: "OPay", title: "Transfer Successful", body: "You received ₦5,000.00 from JOHN DOE" }, "From John Doe");
+  credit({ app: "Moniepoint", title: "Money In", body: "You have been paid ₦5,000.00 by JOHN DOE" }, "From John Doe");
+  credit({ app: "Kuda", body: "John Doe just sent you ₦5,000. Your balance is ₦12,000" }, "From John Doe");
+  credit({ app: "GTWorld", title: "Transaction Alert", body: "Transfer of NGN5,000.00 from JOHN DOE to your account ****345 was successful" }, "From John Doe");
+  // A labelled credit stays a credit even when its narration mentions a transfer "to".
+  credit({ sender: "GTBank", body: "Credit Alert! Acct: 012****345 Amt: NGN5,000.00 Desc: Transfer to SELF from JOHN" });
+});
+
+test("money going out stays a debit", () => {
+  const out = (alert) => assert.equal(parseAlert(alert)?.direction, "debit", alert.body);
+  out({ app: "OPay", title: "Transfer Successful", body: "You sent ₦5,000.00 to JOHN DOE" });
+  out({ app: "OPay", title: "Payment Successful", body: "You paid ₦2,500.00 to CHOWDECK" });
+  out({ app: "Kuda", body: "You just sent ₦3,000 to Jane Doe" });
+  out({ app: "Moniepoint", body: "Transfer of ₦5,000.00 to JOHN DOE was successful" });
+  // Labelled debits win over words like "received" in the narration.
+  out({ sender: "GTBank", body: "Acct: 012****345\nAmt: NGN5,000.00 DR\nDesc: REFUND RECEIVED REVERSAL CHARGE\nAvail Bal: NGN1.00" });
+  out({ sender: "FirstBank", body: "Txn: Debit\nAcct:30******78\nAmt:NGN2,300.00\nDes:TRANSFER RECEIVED BY JOHN\nBal:NGN37,700.00" });
+});
+
+test("says how sure it is about money in or out", () => {
+  assert.equal(parseAlert({ sender: "GTBank", body: "Amt: NGN5,000.00 CR Desc: SALARY" }).directionFrom, "label");
+  assert.equal(parseAlert({ app: "Kuda", body: "John Doe just sent you ₦5,000" }).directionFrom, "wording");
+});
+
+const { findSameTransaction, fixDirection, dropDuplicates } = require("../alerts.js");
+const T = Date.UTC(2026, 10, 8, 9, 0);
+const MIN = 60 * 1000;
+
+test("an entry recorded the wrong way round is turned round from its saved alert text", () => {
+  const misread = { amount: 5000, category: "Transfers", description: "Payment Received", raw: "Payment Received\nPayment received: ₦5,000.00 from JOHN DOE", bank: "OPay" };
+  assert.equal(fixDirection(misread), true);
+  assert.equal(misread.category, "Income");
+  assert.equal(misread.description, "From John Doe");
+  // Already right, typed in by hand, or only a guess: left alone.
+  const right = { amount: 5000, category: "Income", raw: "Payment Received\nPayment received: ₦5,000.00 from JOHN DOE" };
+  assert.equal(fixDirection(right), false);
+  assert.equal(fixDirection({ amount: 5000, category: "Food", description: "Lunch" }), false);
+  const outgoing = { amount: 2500, category: "Income", description: "x", raw: "You paid ₦2,500.00 to CHOWDECK" };
+  assert.equal(fixDirection(outgoing, () => "Food"), true);
+  assert.equal(outgoing.category, "Food");
+});
+
+test("the SMS and the app notification for one transaction are kept once", () => {
+  const sms = { id: "a", source: "sms", bank: "GTBank", amount: 5000, category: "Income", alertAt: T + 2 * MIN, raw: "Acct: 012****345\nAmt: NGN5,000.00 CR\nDesc: TRANSFER FROM JOHN DOE" };
+  const notification = { id: "b", source: "notification", bank: "GTBank", amount: 5000, category: "Income", alertAt: T, raw: "Transfer of NGN5,000.00 from JOHN DOE to your account was successful" };
+  const later = { id: "c", source: "sms", bank: "GTBank", amount: 5000, category: "Income", alertAt: T + 40 * MIN };
+  // The SMS has the bank's own CR label, so it's kept even though the notification came first.
+  assert.deepEqual(dropDuplicates([notification, sms, later]).map((e) => e.id), ["a", "c"]);
+  // Money out and money in of the same amount are different transactions.
+  const out = { ...notification, id: "d", category: "Transfers", raw: undefined };
+  assert.deepEqual(dropDuplicates([out, sms]).map((e) => e.id), ["d", "a"]);
+});
+
+test("a new alert matches the entry already recorded for the same transaction", () => {
+  const credit = { source: "sms", bank: "OPay", amount: 5000, category: "Income", alertAt: T, raw: "Payment received: ₦5,000.00 from JOHN DOE" };
+  const sameIn = { direction: "credit", directionFrom: "wording", bank: "OPay", amount: 5000, timestamp: T + MIN };
+  assert.equal(findSameTransaction([credit], sameIn, "notification"), credit);
+  // A clear debit of the same amount is a different transaction (e.g. sending the money on).
+  const clearOut = { direction: "debit", directionFrom: "wording", bank: "OPay", amount: 5000, timestamp: T + MIN };
+  assert.equal(findSameTransaction([credit], clearOut, "notification"), undefined);
+  // An entry from before alert text was kept can't be re-checked, so a guess still matches it.
+  const legacy = { source: "sms", bank: "OPay", amount: 5000, category: "Transfers", alertAt: T };
+  assert.equal(findSameTransaction([legacy], sameIn, "notification"), legacy);
+  // Too far apart, another bank or another amount: no match.
+  assert.equal(findSameTransaction([credit], { ...sameIn, timestamp: T + 20 * MIN }, "notification"), undefined);
+  assert.equal(findSameTransaction([credit], { ...sameIn, bank: "Kuda" }, "notification"), undefined);
+});

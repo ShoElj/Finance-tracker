@@ -10,6 +10,7 @@ const DESCRIPTIONS_CLEANED_KEY = "expense-overview-descriptions-v4";
 const UPDATE_CHECK_KEY = "expense-overview-update-check";
 const SEEN_CREDITS_KEY = "expense-overview-seen-credits";
 const LAST_SCAN_KEY = "expense-overview-last-scan";
+const DIRECTIONS_FIXED_KEY = "expense-overview-directions-v1";
 const LATEST_RELEASE_URL = "https://api.github.com/repos/ShoElj/Finance-tracker/releases/tags/android-latest";
 
 const currency = new Intl.NumberFormat("en-NG", { style: "currency", currency: "NGN" });
@@ -108,6 +109,7 @@ const elements = {
   updateButton: $("#updateButton"),
   updateLater: $("#updateLater"),
   moneyIn: $("#moneyIn"),
+  netFlow: $("#netFlow"),
   appVersion: $("#appVersion"),
   checkUpdateButton: $("#checkUpdateButton"),
   filterChip: $("#filterChip"),
@@ -252,6 +254,7 @@ elements.ownNamesInput.addEventListener("change", () => {
 
 recategorizeImported();
 cleanImportedDescriptions();
+repairDirections();
 
 elements.importButton.addEventListener("click", openImportSheet);
 elements.setupButton.addEventListener("click", openImportSheet);
@@ -425,9 +428,14 @@ function render() {
   elements.entryCount.textContent = String(counted.length);
   elements.clearMonthButton.disabled = monthly.length === 0;
 
+  // Money in is shown beside spending, never added to it; "Net" is what's left after spending.
   const received = sum(moneyIn(monthly));
+  const net = received - total;
   elements.moneyIn.hidden = received === 0;
   elements.moneyIn.textContent = `Money in: ${currency.format(received)}`;
+  elements.netFlow.hidden = received === 0;
+  elements.netFlow.textContent = `Net: ${net >= 0 ? "+" : "−"}${currency.format(Math.abs(net))}`;
+  elements.netFlow.classList.toggle("is-negative", net < 0);
 
   renderPending();
   renderImportState();
@@ -828,8 +836,9 @@ function ingestAlerts(alerts, { announceEmpty = false } = {}) {
     if (seen.has(alert.id)) continue;
     seen.add(alert.id);
     if (!parsed) continue;
-    const existing = findDuplicate(parsed, alert.source);
+    const existing = BankAlertParser.findSameTransaction([...state.pending, ...state.expenses], parsed, alert.source);
     if (existing) {
+      turnRoundIfSurer(existing, parsed);
       improveFromAlert(existing, parsed, alert);
       continue;
     }
@@ -868,18 +877,38 @@ function ingestAlerts(alerts, { announceEmpty = false } = {}) {
   else if (announceEmpty) showToast("No new bank transactions found");
 }
 
-// A bank's SMS and its app notification describe the same transaction, and a rescan can meet one
-// already recorded; keep only the first one seen.
-function findDuplicate(parsed, source) {
-  const fifteenMinutes = 15 * 60 * 1000;
-  return [...state.pending, ...state.expenses].find(
-    (item) =>
-      item.alertAt &&
-      (item.source !== source || item.alertAt === parsed.timestamp) &&
-      item.bank === parsed.bank &&
-      item.amount === parsed.amount &&
-      Math.abs(item.alertAt - parsed.timestamp) < fifteenMinutes,
+// When the SMS and the app notification for one transaction disagree about which way the money
+// went, the one that says so more clearly (the bank's own CR/DR label beats wording) wins.
+function turnRoundIfSurer(item, parsed) {
+  const recorded = item.category === "Income" ? "credit" : "debit";
+  if (recorded === parsed.direction) return;
+  if (BankAlertParser.sureness(parsed.directionFrom) <= BankAlertParser.entrySureness(item)) return;
+  item.description = parsed.description;
+  item.category = parsed.direction === "credit" ? "Income" : rememberedCategory(parsed.description) || parsed.category;
+}
+
+// Earlier versions read some "money in" notifications (e.g. "Payment received", "sent you") as
+// spending, and could then record the same transaction twice. Re-read each imported entry's
+// saved alert text once, turn round the ones that were wrong and drop the second copies.
+function repairDirections() {
+  if (localStorage.getItem(DIRECTIONS_FIXED_KEY)) return;
+  const categoryFor = (parsed) => rememberedCategory(parsed.description) || parsed.category;
+  let fixed = 0;
+  for (const item of [...state.expenses, ...state.pending]) if (BankAlertParser.fixDirection(item, categoryFor)) fixed += 1;
+  const before = state.expenses.length + state.pending.length;
+  state.expenses = BankAlertParser.dropDuplicates(state.expenses);
+  // A queued alert for something already recorded isn't new.
+  state.pending = BankAlertParser.dropDuplicates(state.pending).filter(
+    (item) => !state.expenses.some((expense) => BankAlertParser.sameEntry(expense, item)),
   );
+  const removed = before - state.expenses.length - state.pending.length;
+  saveExpenses();
+  saveJson(PENDING_KEY, state.pending);
+  localStorage.setItem(DIRECTIONS_FIXED_KEY, "1");
+  if (fixed || removed) {
+    const parts = [fixed && `${fixed} money-in ${fixed === 1 ? "entry" : "entries"} fixed`, removed && `${removed} duplicate${removed === 1 ? "" : "s"} removed`];
+    showToast(parts.filter(Boolean).join(", "));
+  }
 }
 
 // The alert's original text stays on the phone so improved rules can re-read it later.

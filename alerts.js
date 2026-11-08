@@ -17,6 +17,18 @@
   const MONEY = /(?:NGN|₦|\bN(?=\s?\d))\s?(\d{1,3}(?:,\d{3})+(?:\.\d{1,2})?|\d+(?:\.\d{1,2})?)/gi;
   const DEBIT = /\b(DR|debit(?:ed)?|withdrawal|withdrawn|sent|transferred|transfer (?:successful|to)|paid|payment|purchase|spent|charged)\b/i;
   const CREDIT = /\b(CR|credit(?:ed)?|received|deposit(?:ed)?|reversal|reversed|refund(?:ed)?|inflow)\b/i;
+  // Labels banks print on the alert itself: "CR"/"DR" after the amount, "Txn: Credit", "Credit Alert",
+  // "Debit: 3012…". These are the surest sign of which way the money went.
+  // "CR"/"DR" only count in capitals (they're bank codes, not parts of words); the word labels
+  // can be any case.
+  const CREDIT_LABELS = [/\bCR\b/, /\b(?:txn|transaction|type)\s*[:\-]\s*credit\b|\bcredit\s+alert\b|^\s*credit\b|\bcredit\s*:/im];
+  const DEBIT_LABELS = [/\bDR\b/, /\b(?:txn|transaction|type)\s*[:\-]\s*debit\b|\bdebit\s+alert\b|^\s*debit\b|\bdebit\s*:/im];
+  // Banking-app wording. Incoming notifications often also say "payment", "paid", "sent" or
+  // "transfer successful", so whole phrases decide rather than single words.
+  const INBOUND =
+    /\b(?:received|sent you|paid you|(?:been|got) paid|inflow|deposit(?:ed)?|refund(?:ed)?|revers(?:al|ed)|credited|money in|(?:in)?to your (?:account|acct|wallet))\b/i;
+  const OUTBOUND =
+    /\b(?:debited|you (?:just )?(?:sent|paid|transferred|spent|bought|withdrew)|withdrawal|withdrawn|purchase|spent|charged|(?:transfer(?:red)?|sent|paid|payment)\b[^\n]{0,40}?\bto (?!your\b|you\b))/i;
   const IGNORE = /\b(otp|one[- ]time|password|failed|unsuccessful|declined|pending|insufficient|request(?:ed)? (?:for|of))\b/i;
   const BALANCE_BEFORE = /(bal(?:ance)?|avail(?:able)?|ledger|limit)\W*$/i;
 
@@ -27,6 +39,9 @@
 
   const SENDER =
     /\bfrom\s+([A-Za-z0-9][A-Za-z0-9 &'.\-\/]{1,40}?)(?=\s*(?:[,;]|\.\s|\.$|\bon\b|\bvia\b|\bwith\b|\bref\b|\bto\b|\binto\b|\n|$))/i;
+
+  const PAID_BY = /\bpaid\b[^\n]{0,30}?\bby\s+([A-Za-z][A-Za-z0-9 &'.\-]{1,40}?)(?=\s*(?:[,;]|\.\s|\.$|\bon\b|\bvia\b|\n|$))/i;
+  const SENT_YOU = /^\s*([A-Za-z][A-Za-z .'\-]{1,40}?)\s+(?:just\s+)?(?:sent|paid|transferred)\s+you\b/im;
 
   const DATE_FIELD =
     /\b(?:date|dt)\s*[:\-]\s*(\d{1,4})[-\/ ]([0-9]{1,2}|[A-Za-z]{3,9})[-\/ ](\d{2,4})(?:[ T,]+(\d{1,2}):(\d{2})(?::\d{2})?\s*([AP]M)?)?/i;
@@ -92,13 +107,20 @@
     return fallback;
   }
 
+  // Which way the money went, and how sure: "label" (the bank said CR/DR), "wording" (a clear
+  // phrase like "sent you" or "you paid") or "order" (whichever money word comes first).
   function findDirection(text) {
-    const debit = text.search(DEBIT);
-    const credit = text.search(CREDIT);
-    if (debit === -1 && credit === -1) return null;
-    if (credit === -1) return "debit";
-    if (debit === -1) return "credit";
-    return debit < credit ? "debit" : "credit";
+    const credit = CREDIT_LABELS.some((label) => label.test(text));
+    const debit = DEBIT_LABELS.some((label) => label.test(text));
+    if (credit !== debit) return { direction: credit ? "credit" : "debit", from: "label" };
+    const inbound = INBOUND.test(text);
+    const outbound = OUTBOUND.test(text);
+    if (inbound !== outbound) return { direction: inbound ? "credit" : "debit", from: "wording" };
+    const debitAt = text.search(DEBIT);
+    const creditAt = text.search(CREDIT);
+    if (debitAt === -1 && creditAt === -1) return null;
+    const direction = creditAt === -1 || (debitAt !== -1 && debitAt < creditAt) ? "debit" : "credit";
+    return { direction, from: "order" };
   }
 
   function findDescription(text, title, direction) {
@@ -106,6 +128,9 @@
     if (field) return tidy(field[1], direction);
     const sender = direction === "credit" && text.match(SENDER);
     if (sender && !/^(?:NGN|N\d|₦|your|you)/i.test(sender[1])) return tidy(sender[0]);
+    // "You have been paid ₦5,000 by JOHN DOE", "John Doe just sent you ₦5,000".
+    const payer = direction === "credit" && (text.match(PAID_BY) || text.match(SENT_YOU));
+    if (payer && !/^(?:NGN|N\d|₦|your|you)$/i.test(payer[1])) return tidy(`From ${payer[1]}`);
     const counterparty = text.match(COUNTERPARTY);
     if (counterparty && !/^(?:NGN|N\d|₦|your|you)/i.test(counterparty[1])) return tidy(counterparty[0]);
     if (title && !MONEY.test(title)) return tidy(title);
@@ -139,7 +164,8 @@
 
   /**
    * alert: { body, title?, sender?, app?, packageName?, timestamp? }
-   * Returns { amount, direction, description, bank, category, timestamp } or null if it is not a transaction.
+   * Returns { amount, direction, directionFrom, description, bank, category, timestamp } or null if it is
+   * not a transaction. directionFrom says how sure the direction is: "label", "wording" or "order".
    */
   function parseAlert(alert) {
     const title = (alert.title || "").trim();
@@ -148,14 +174,16 @@
     if (!text || IGNORE.test(text)) return null;
 
     const amount = findAmount(text);
-    const direction = findDirection(text);
-    if (!amount || !direction) return null;
+    const found = findDirection(text);
+    if (!amount || !found) return null;
+    const { direction, from: directionFrom } = found;
 
     const bank = detectBank(alert);
     const description = findDescription(body, title, direction) || `${bank || "Bank"} ${direction === "debit" ? "payment" : "credit"}`;
     return {
       amount: Math.round(amount * 100) / 100,
       direction,
+      directionFrom,
       description,
       bank,
       category: direction === "credit" ? "Income" : guessCategory(`${description} ${body}`),
@@ -163,7 +191,99 @@
     };
   }
 
-  const api = { parseAlert, splitAlerts, guessCategory, detectBank, cleanDescription: tidy };
+  /* Recorded entries */
+
+  // An entry is money in when it's filed as Income; everything else is money out.
+  const FIFTEEN_MINUTES = 15 * 60 * 1000;
+  const SURENESS = { label: 3, wording: 2, order: 1 };
+
+  function entryDirection(item) {
+    return item.category === "Income" ? "credit" : "debit";
+  }
+
+  // How sure the direction of a recorded entry is, re-read from its saved alert text
+  // (0 when there is none: typed in by hand, or imported before alert text was kept).
+  function entrySureness(item) {
+    const parsed = item.raw ? parseAlert({ body: item.raw }) : null;
+    return parsed ? SURENESS[parsed.directionFrom] : 0;
+  }
+
+  /**
+   * The recorded entry for the same bank transaction as `parsed` (seen from `source`), if any: a
+   * bank's SMS and its app's notification describe one transaction, and a rescan can meet one
+   * already recorded. Same bank and amount within 15 minutes. Opposite directions only match when
+   * one of them was a guess, so a genuine reversal (money out, then the same amount back) stays.
+   */
+  function findSameTransaction(items, parsed, source) {
+    return items.find((item) => {
+      if (!item.alertAt || item.bank !== parsed.bank || item.amount !== parsed.amount) return false;
+      if (Math.abs(item.alertAt - parsed.timestamp) >= FIFTEEN_MINUTES) return false;
+      if (item.source === source && item.alertAt !== parsed.timestamp) return false;
+      if (entryDirection(item) === parsed.direction) return true;
+      return Math.min(entrySureness(item), SURENESS[parsed.directionFrom]) <= SURENESS.order;
+    });
+  }
+
+  /**
+   * Re-reads a recorded entry's saved alert text and, when the text clearly says the money went
+   * the other way, turns it round. `categoryFor(parsed)` picks the category for money out.
+   * Returns true if the entry changed.
+   */
+  function fixDirection(item, categoryFor = (parsed) => parsed.category) {
+    if (!item.raw) return false;
+    const parsed = parseAlert({ body: item.raw });
+    if (!parsed || parsed.directionFrom === "order" || parsed.direction === entryDirection(item)) return false;
+    item.description = parsed.description;
+    item.category = parsed.direction === "credit" ? "Income" : categoryFor(parsed);
+    return true;
+  }
+
+  /**
+   * Removes the second copy of each transaction recorded twice (from the SMS and the app
+   * notification). Keeps the copy whose direction is surer, else the earlier one. Returns the
+   * entries kept, in their original order.
+   */
+  // Two recorded entries for one transaction, seen from the SMS and from the app notification.
+  function sameEntry(a, b) {
+    return (
+      Boolean(a.alertAt && b.alertAt) &&
+      a.source !== b.source &&
+      a.bank === b.bank &&
+      a.amount === b.amount &&
+      entryDirection(a) === entryDirection(b) &&
+      Math.abs(a.alertAt - b.alertAt) < FIFTEEN_MINUTES
+    );
+  }
+
+  function dropDuplicates(items) {
+    const removed = new Set();
+    for (let i = 0; i < items.length; i += 1) {
+      const a = items[i];
+      if (removed.has(a)) continue;
+      for (let j = i + 1; j < items.length; j += 1) {
+        const b = items[j];
+        if (removed.has(b) || !sameEntry(a, b)) continue;
+        const keepA = entrySureness(a) > entrySureness(b) || (entrySureness(a) === entrySureness(b) && a.alertAt <= b.alertAt);
+        removed.add(keepA ? b : a);
+        if (!keepA) break;
+      }
+    }
+    return items.filter((item) => !removed.has(item));
+  }
+
+  const api = {
+    parseAlert,
+    splitAlerts,
+    guessCategory,
+    detectBank,
+    cleanDescription: tidy,
+    findSameTransaction,
+    fixDirection,
+    dropDuplicates,
+    sameEntry,
+    sureness: (from) => SURENESS[from] ?? 0,
+    entrySureness,
+  };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else root.BankAlertParser = api;
 })(typeof window !== "undefined" ? window : globalThis);

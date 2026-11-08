@@ -345,6 +345,17 @@ h1 {
   font-weight: 600;
 }
 
+.hero-net {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.hero-net.is-negative {
+  color: #ffd2cc;
+}
+
 .hero-delta {
   display: inline-flex;
   align-items: center;
